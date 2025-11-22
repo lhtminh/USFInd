@@ -3,15 +3,16 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-import google.generativeai as genai
+import base64
+from openai import OpenAI
 from dotenv import load_dotenv
 from PIL import Image
 
 # Load environment variables
 load_dotenv()
 
-# Initialize Gemini
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# Initialize OpenAI client
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Configuration
 DATA_FILE = "data.json"
@@ -40,16 +41,25 @@ def save_data(data):
     with open(DATA_FILE, 'w') as f:
         json.dump(data, f, indent=2)
 
+def encode_image_to_base64(image_path):
+    """Encode image to base64 for OpenAI API"""
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode('utf-8')
+
 def extract_item_info(image_path):
-    """Use Google Gemini Vision API to extract item information"""
+    """Use OpenAI Vision API to extract item information"""
     try:
-        # Load the image
-        img = Image.open(image_path)
+        base64_image = encode_image_to_base64(image_path)
         
-        # Initialize Gemini model
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        
-        prompt = """Analyze this image of a lost/found item and extract the following information in a structured format:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": """Analyze this image of a lost/found item and extract the following information in a structured format:
 - Item Type: (e.g., phone, wallet, keys, bag, etc.)
 - Color: (primary color)
 - Brand/Model: (if visible)
@@ -57,11 +67,21 @@ def extract_item_info(image_path):
 - Description: (brief overall description)
 
 Format your response as JSON with these exact keys: item_type, color, brand, features, description"""
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=300
+        )
         
-        # Generate response
-        response = model.generate_content([prompt, img])
-        content = response.text
-        
+        # Parse the response
+        content = response.choices[0].message.content
         # Try to extract JSON from response
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0].strip()
