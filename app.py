@@ -16,6 +16,7 @@ from database import (
     get_database_stats
 )
 
+
 # Configuration
 IMAGES_DIR = "images"
 
@@ -268,6 +269,8 @@ def page_lost_item():
                         with col1:
                             if os.path.exists(found_item["image_path"]):
                                 st.image(found_item["image_path"], width=200)
+                            # Show map for this found item if coordinates exist
+                            # (Maps removed) show only image; location fields not used
                         with col2:
                             st.metric(label="Match Score", value=f"{score}%")
                             st.markdown(f"**{found_item.get('item_type','Unknown').title()}** — {found_item.get('color','')}")
