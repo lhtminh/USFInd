@@ -44,91 +44,16 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Initialize data storage
-def load_data():
-    """Load data from JSON file"""
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, 'r') as f:
-            return json.load(f)
-    return {"found_items": [], "lost_items": []}
-
-def save_data(data):
-    """Save data to JSON file"""
-    with open(DATA_FILE, 'w') as f:
-        json.dump(data, f, indent=2)
-
-def extract_item_info(image_path):
-    """Use Google Gemini Vision API to extract item information"""
-    try:
-        # Load the image
-        img = Image.open(image_path)
-        
-        # Initialize Gemini model
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        
-        prompt = """Analyze this image of a lost/found item and extract the following information in a structured format:
-- Item Type: (e.g., phone, wallet, keys, bag, etc.)
-- Color: (primary color)
-- Brand/Model: (if visible)
-- Distinctive Features: (unique characteristics, damages, stickers, etc.)
-- Description: (brief overall description)
-
-Format your response as JSON with these exact keys: item_type, color, brand, features, description"""
-        
-        # Generate response
-        response = model.generate_content([prompt, img])
-        content = response.text
-        
-        # Try to extract JSON from response
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0].strip()
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0].strip()
-        
-        return json.loads(content)
-    except Exception as e:
-        st.error(f"Error extracting item info: {str(e)}")
-        return {
-            "item_type": "Unknown",
-            "color": "Unknown",
-            "brand": "Unknown",
-            "features": "Could not extract",
-            "description": "Manual description needed"
-        }
-
-def calculate_match_score(lost_item, found_item):
-    """Calculate similarity score between lost and found items"""
-    score = 0
-    
-    # Compare item types (highest weight)
-    if lost_item.get("item_type", "").lower() == found_item.get("item_type", "").lower():
-        score += 40
-    
-    # Compare colors
-    if lost_item.get("color", "").lower() in found_item.get("color", "").lower() or \
-       found_item.get("color", "").lower() in lost_item.get("color", "").lower():
-        score += 25
-    
-    # Compare brands
-    if lost_item.get("brand", "").lower() == found_item.get("brand", "").lower() and lost_item.get("brand", "") != "Unknown":
-        score += 20
-    
-    # Compare features (keyword matching)
-    lost_features = set(lost_item.get("features", "").lower().split())
-    found_features = set(found_item.get("features", "").lower().split())
-    feature_overlap = len(lost_features & found_features)
-    if feature_overlap > 0:
-        score += min(15, feature_overlap * 5)
-    
-    return score
+# Use service modules for AI extraction, matching, and storage.
+# Local JSON helpers and duplicate AI/matching implementations were removed
+# to keep logic centralized in `ai_service.py`, `matching_service.py`, and `database.py`.
 
 # Main app
 def main():
     st.title("🔍 USFInd - Lost & Found App")
     st.markdown("*AI-Powered Item Matching System*")
     
-    # Load data
-    data = load_data()
+    # (Data persisted via SQLite through `database.py` functions)
     
     # Sidebar navigation + help
     st.sidebar.title("Navigation")
@@ -196,11 +121,10 @@ def page_found_item():
             item_info["timestamp"] = datetime.now().isoformat()
             item_info["type"] = "found"
 
-            # Save to database
-            data["found_items"].append(item_info)
-            save_data(data)
+            # Save to database (SQLite)
+            item_id = add_found_item(item_info)
 
-            st.success("✅ Item added to the database!")
+            st.success(f"✅ Item added to the database (ID: {item_id})!")
 
             st.subheader("Extracted / Saved Information")
             col1, col2 = st.columns([1, 2])
