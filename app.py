@@ -103,8 +103,12 @@ def page_found_item():
                 else:
                     st.error("❌ Failed to extract item information. Please check your API key and try again.")
                     # Clean up the saved image
+                    image.close()
                     if os.path.exists(image_path):
-                        os.remove(image_path)
+                        try:
+                            os.remove(image_path)
+                        except PermissionError:
+                            pass  # Skip if file is in use
 
 def page_lost_item():
     """Page for reporting lost items"""
