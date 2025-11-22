@@ -82,6 +82,56 @@ def main():
 def page_found_item():
     """Page for reporting found items"""
     st.header("📤 Report a Found Item")
+    st.write("Upload an image of the item you found, and AI will extract its details.")
+    
+    uploaded_file = st.file_uploader("Choose an image", type=["jpg", "jpeg", "png"])
+    
+    if uploaded_file is not None:
+        # Display uploaded image
+        image = Image.open(uploaded_file)
+        st.image(image, caption="Uploaded Image", width=300)
+        
+        if st.button("🔍 Extract Item Information", type="primary"):
+            with st.spinner("Analyzing image with AI..."):
+                # Save image
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                image_filename = f"found_{timestamp}.jpg"
+                image_path = os.path.join(IMAGES_DIR, image_filename)
+                image.save(image_path)
+                
+                # Extract info using AI
+                item_info = extract_item_info(image_path)
+                
+                # Only save if extraction was successful
+                if item_info.get("item_type") != "Unknown":
+                    # Add metadata
+                    item_info["image_path"] = image_path
+                    item_info["timestamp"] = datetime.now().isoformat()
+                    
+                    # Save to database
+                    item_id = add_found_item(item_info)
+                    
+                    st.success(f"✅ Item successfully added to the database! (ID: {item_id})")
+                    
+                    # Display extracted information
+                    st.subheader("Extracted Information:")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**Item Type:** {item_info['item_type']}")
+                        st.write(f"**Color:** {item_info['color']}")
+                        st.write(f"**Brand:** {item_info['brand']}")
+                    with col2:
+                        st.write(f"**Features:** {item_info['features']}")
+                        st.write(f"**Description:** {item_info['description']}")
+                else:
+                    st.error("❌ Failed to extract item information. Please check your API key and try again.")
+                    # Clean up the saved image
+                    image.close()
+                    if os.path.exists(image_path):
+                        try:
+                            os.remove(image_path)
+                        except PermissionError:
+                            pass  # Skip if file is in use
     st.write("Upload a clear image of the found item. The app will try to extract details using AI — you can edit them before saving.")
 
     with st.form(key="found_form", clear_on_submit=False):
