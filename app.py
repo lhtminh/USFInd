@@ -1,17 +1,40 @@
-import streamlit as st
+# app.py
 import os
 from datetime import datetime
 from pathlib import Path
+
+import streamlit as st
 from PIL import Image
+
+from ai_service import extract_item_info
+from matching_service import calculate_match_score
+from database import (
+    init_database,
+    add_found_item,
+    add_lost_item,
+    get_all_found_items,
+    get_all_lost_items,
+    get_database_stats,
+)
+
+# ---------- Setup ----------
+
+IMAGES_DIR = "images"
+Path(IMAGES_DIR).mkdir(exist_ok=True)
+
+# Init DB once
+init_database()
 
 st.set_page_config(
     page_title="USFind",
     page_icon="🌿",
-    layout="wide"
+    layout="wide",
 )
 
-# Minimalistic nature-themed styling
-st.markdown("""
+# ---------- Global styling ----------
+
+st.markdown(
+    """
 <style>
 
 /* Page container */
@@ -26,7 +49,7 @@ st.markdown("""
     background: linear-gradient(180deg, #F4FFF6 0%, #EFFFF5 100%);
 }
 
-/* Headers */
+/* Typography */
 h1, h2, h3 {
     color: #1B3A29;
     font-weight: 600;
@@ -44,6 +67,20 @@ h1, h2, h3 {
     background: #E2F7E8;
     border: 1px solid #C4EBD0;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+    transition: transform 0.08s ease-out, box-shadow 0.08s ease-out;
+}
+.usf-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.10);
+}
+
+/* Remove Streamlit form chrome (we're not using forms, but just in case) */
+.stForm {
+    background: transparent !important;
+    padding: 0 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
 }
 
 /* Inputs */
@@ -55,18 +92,22 @@ h1, h2, h3 {
     color: #1B3A29 !important;
 }
 
-/* Buttons */
+/* Buttons (all) */
 .stButton button {
-    border-radius: 999px;
-    padding: 0.45rem 1.7rem;
+    border-radius: 10px;         /* rectangular, soft corners */
+    padding: 0.45rem 1.4rem;
     border: none;
     background: #4CAF50;
     color: white;
     font-weight: 600;
     letter-spacing: 0.02em;
+    transition: transform 0.08s ease-out, box-shadow 0.08s ease-out, background 0.08s ease-out;
+    cursor: pointer;
 }
 .stButton button:hover {
     background: #6BCF74;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
 }
 
 /* Sidebar */
@@ -78,321 +119,307 @@ section[data-testid="stSidebar"] > div {
     padding-top: 1.5rem;
 }
 
-</style>
-""", unsafe_allow_html=True)
+/* Sidebar nav: rectangular, centered buttons */
+section[data-testid="stSidebar"] div[role="radiogroup"] {
+    gap: 0.5rem;
+}
 
-# Hero header
+/* Each nav "button" */
+section[data-testid="stSidebar"] div[role="radiogroup"] > label {
+    border-radius: 10px;
+    padding: 0.5rem 0.9rem;
+    background: #C8ECCF;                /* darker than sidebar bg */
+    border: 1px solid #7BB889;
+    cursor: pointer;
+    font-weight: 600;
+    text-align: center;
+    transition:
+        background 0.08s ease-out,
+        border-color 0.08s ease-out,
+        transform 0.05s ease-out,
+        box-shadow 0.08s ease-out;
+}
+
+/* Hide default circular radio dot */
+section[data-testid="stSidebar"] div[role="radiogroup"] > label > div:first-child {
+    display: none;
+}
+
+/* Text inside nav buttons */
+section[data-testid="stSidebar"] div[role="radiogroup"] > label span {
+    color: #1B3A29;
+    font-size: 0.95rem;
+}
+
+/* Hover / cursor feedback on nav */
+section[data-testid="stSidebar"] div[role="radiogroup"] > label:hover {
+    background: #B4E3C3;
+    border-color: #4CAF50;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
+}
+
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+# ---------- Hero header ----------
+
 st.markdown(
     """
     <div style="text-align:center; margin-bottom: 1.5rem;">
         <div style="font-size: 2.1rem; font-weight: 600; color:#1B3A29; margin-bottom: 0.25rem;">
-            🌿 USFInd
+            🌿 USFind
         </div>
         <div class="small-muted">
-            A calm, light-green place to reconnect people with their lost items.
+            Minimal, calm lost & found.
         </div>
     </div>
     """,
     unsafe_allow_html=True,
 )
 
-# Import services
-from ai_service import extract_item_info
-from matching_service import calculate_match_score
-from database import (
-    init_database, 
-    add_found_item, 
-    add_lost_item, 
-    get_all_found_items, 
-    get_all_lost_items,
-    get_database_stats
-)
 
-# Configuration
-IMAGES_DIR = "images"
+# ---------- Pages ----------
 
-# Create images directory if it doesn't exist
-Path(IMAGES_DIR).mkdir(exist_ok=True)
+def page_found_item() -> None:
+    """Page for reporting found items (simple, no extra green box)."""
+    st.header("Found item")
+    st.markdown(
+        "<p class='small-muted'>Add a found item so its owner can look for it.</p>",
+        unsafe_allow_html=True,
+    )
 
-# Initialize database
-init_database()
+    # no st.markdown("<div class='usf-card'>") here
 
-# Page configuration
-st.set_page_config(
-    page_title="USFind - Lost & Found",
-    page_icon="🔍",
-    layout="wide"
-)
+    uploaded_file = st.file_uploader(
+        "Photo",
+        type=["jpg", "jpeg", "png"],
+        key="found_photo",
+    )
 
-# Light styling to make the app look nicer
-st.markdown(
-    """
-    <style>
-    .big-title {font-size:32px; font-weight:700;}
-    .muted {color: #6c757d}
-    .card {border-radius:8px; padding:12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);}
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+    col1, col2 = st.columns(2)
+    with col1:
+        manual_type = st.text_input("Item", placeholder="Wallet, keys, phone")
+        manual_color = st.text_input("Color")
+    with col2:
+        manual_brand = st.text_input("Brand / model")
+        manual_features = st.text_area("Details", placeholder="Scratches, stickers, tag…")
 
-# Use service modules for AI extraction, matching, and storage.
-# Local JSON helpers and duplicate AI/matching implementations were removed
-# to keep logic centralized in `ai_service.py`, `matching_service.py`, and `database.py`.
+    if st.button("Save item", key="save_found"):
+        if uploaded_file is None:
+            st.warning("Please add a photo.")
+        else:
+            with st.spinner("Saving item..."):
+                image = Image.open(uploaded_file)
 
-# Main app
-def main():
-    st.title("🔍 USFind - Lost & Found App")
-    st.markdown("*AI-Powered Item Matching System*")
-    
-    # (Data persisted via SQLite through `database.py` functions)
-    
-    # Sidebar navigation + help
-    st.sidebar.title("Navigation")
-    st.sidebar.markdown("Use this app to report found items, report lost items, and search for matches.")
-    page = st.sidebar.radio("Go to", ["📤 Report Found Item", "🔎 Report Lost Item", "📋 View All Items"])
-    with st.sidebar.expander("Helpful tips"):
-        st.write("• Upload clear photos that show distinctive features.")
-        st.write("• If AI extraction fails, use the manual description option.")
-        st.write("• Matches are heuristic-based; check details carefully.")
-    
-    # Display stats in sidebar
-    stats = get_database_stats()
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("📊 Database Stats")
-    st.sidebar.metric("Found Items", stats['found_items'])
-    st.sidebar.metric("Lost Items", stats['lost_items'])
-    st.sidebar.metric("Total Items", stats['total_items'])
-    
-    if page == "📤 Report Found Item":
-        page_found_item()
-    elif page == "🔎 Report Lost Item":
-        page_lost_item()
-    else:
-        page_view_all()
-
-def page_found_item():
-    """Page for reporting found items"""
-    st.header("📤 Report a Found Item")
-    st.write("Upload an image of the item you found, and AI will extract its details.")
-    
-    uploaded_file = st.file_uploader("Choose an image", type=["jpg", "jpeg", "png"])
-    
-    if uploaded_file is not None:
-        # Display uploaded image
-        image = Image.open(uploaded_file)
-        st.image(image, caption="Uploaded Image", width=300)
-        
-        if st.button("🔍 Extract Item Information", type="primary"):
-            with st.spinner("Analyzing image with AI..."):
-                # Save image
+                # Save image to disk
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 image_filename = f"found_{timestamp}.jpg"
                 image_path = os.path.join(IMAGES_DIR, image_filename)
                 image.save(image_path)
-                
-                # Extract info using AI
+
+                # Extract info with AI
                 item_info = extract_item_info(image_path)
-                
-                # Only save if extraction was successful
-                if item_info.get("item_type") != "Unknown":
-                    # Add metadata
-                    item_info["image_path"] = image_path
-                    item_info["timestamp"] = datetime.now().isoformat()
-                    
-                    # Save to database
-                    item_id = add_found_item(item_info)
-                    
-                    st.success(f"✅ Item successfully added to the database! (ID: {item_id})")
-                    
-                    # Display extracted information
-                    st.subheader("Extracted Information:")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        st.write(f"**Item Type:** {item_info['item_type']}")
-                        st.write(f"**Color:** {item_info['color']}")
-                        st.write(f"**Brand:** {item_info['brand']}")
-                    with col2:
-                        st.write(f"**Features:** {item_info['features']}")
-                        st.write(f"**Description:** {item_info['description']}")
-                else:
-                    st.error("❌ Failed to extract item information. Please check your API key and try again.")
-                    # Clean up the saved image
-                    image.close()
-                    if os.path.exists(image_path):
-                        try:
-                            os.remove(image_path)
-                        except PermissionError:
-                            pass  # Skip if file is in use
-    st.write("Upload a clear image of the found item. The app will try to extract details using AI — you can edit them before saving.")
 
-    with st.form(key="found_form", clear_on_submit=False):
-        uploaded_file = st.file_uploader("Choose an image", type=["jpg", "jpeg", "png"], key="found_upload")
-        manual_type = st.text_input("Item Type", placeholder="e.g., wallet, keys, phone")
-        manual_color = st.text_input("Color")
-        manual_brand = st.text_input("Brand/Model")
-        manual_features = st.text_area("Distinctive Features")
-        submitted = st.form_submit_button("🔍 Analyze & Save")
+                # Manual overrides
+                if manual_type:
+                    item_info["item_type"] = manual_type
+                if manual_color:
+                    item_info["color"] = manual_color
+                if manual_brand:
+                    item_info["brand"] = manual_brand
+                if manual_features:
+                    item_info["features"] = manual_features
 
-    if uploaded_file is not None and submitted:
-        with st.spinner("Processing image and extracting information..."):
-            image = Image.open(uploaded_file)
-            st.image(image, caption="Uploaded Image", width=320)
-
-            # Save image
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            image_filename = f"found_{timestamp}.jpg"
-            image_path = os.path.join(IMAGES_DIR, image_filename)
-            image.save(image_path)
-
-            # Try AI extraction, but allow manual overrides
-            item_info = extract_item_info(image_path)
-
-            # Merge manual fields (manual input takes precedence if provided)
-            if manual_type:
-                item_info["item_type"] = manual_type
-            if manual_color:
-                item_info["color"] = manual_color
-            if manual_brand:
-                item_info["brand"] = manual_brand
-            if manual_features:
-                item_info["features"] = manual_features
-
-            # Add metadata
-            item_info["image_path"] = image_path
-            item_info["timestamp"] = datetime.now().isoformat()
-            item_info["type"] = "found"
-
-            # Save to database (SQLite)
-            item_id = add_found_item(item_info)
-
-            st.success(f"✅ Item added to the database (ID: {item_id})!")
-
-            st.subheader("Extracted / Saved Information")
-            col1, col2 = st.columns([1, 2])
-            with col1:
-                if os.path.exists(item_info["image_path"]):
-                    st.image(item_info["image_path"], use_column_width=True)
-            with col2:
-                st.markdown(f"**Item Type:** {item_info.get('item_type','Unknown')}")
-                st.markdown(f"**Color:** {item_info.get('color','Unknown')}")
-                st.markdown(f"**Brand:** {item_info.get('brand','Unknown')}")
-                st.markdown(f"**Features:** {item_info.get('features','')}")
-                st.markdown(f"**Description:** {item_info.get('description','')}")
-
-def page_lost_item():
-    """Page for reporting lost items"""
-    st.header("🔎 Report a Lost Item")
-    st.write("Upload a photo or enter a description to search for potential matches among reported found items.")
-
-    input_method = st.radio("How would you like to describe your lost item?", ["Upload Image", "Text Description"]) 
-    item_info = None
-
-    if input_method == "Upload Image":
-        with st.form(key="lost_image_form"):
-            uploaded_file = st.file_uploader("Choose an image", type=["jpg", "jpeg", "png"], key="lost_upload")
-            analyze = st.form_submit_button("🔍 Analyze & Find Matches")
-
-        if uploaded_file is not None and analyze:
-            with st.spinner("Analyzing image..."):
-                image = Image.open(uploaded_file)
-                st.image(image, caption="Uploaded Image", width=320)
-
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                image_filename = f"lost_{timestamp}.jpg"
-                image_path = os.path.join(IMAGES_DIR, image_filename)
-                image.save(image_path)
-
-                item_info = extract_item_info(image_path)
+                # Metadata
                 item_info["image_path"] = image_path
-    else:
-        with st.form(key="lost_text_form"):
-            st.subheader("Describe your lost item:")
-            col1, col2 = st.columns(2)
-            with col1:
-                item_type = st.text_input("Item Type", placeholder="e.g., phone, wallet, keys")
-                color = st.text_input("Color", placeholder="e.g., black, blue, red")
-            with col2:
-                brand = st.text_input("Brand/Model", placeholder="e.g., iPhone 13, Nike")
-                features = st.text_area("Distinctive Features", placeholder="e.g., cracked screen, red sticker")
-            find_matches = st.form_submit_button("🔍 Find Matches")
+                item_info["timestamp"] = datetime.now().isoformat()
+                item_info["type"] = "found"
 
-        if find_matches:
-            item_info = {
-                "item_type": item_type.strip() or "Unknown",
-                "color": color.strip() or "Unknown",
-                "brand": brand.strip() or "Unknown",
-                "features": features.strip() or "",
-                "description": f"{color} {brand} {item_type}".strip()
-            }
-    
-    # Find matches
+                item_id = add_found_item(item_info)
+
+                st.success(f"Item saved (ID: {item_id}).")
+
+                col_img, col_text = st.columns([1, 2])
+                with col_img:
+                    if os.path.exists(image_path):
+                        st.image(image_path, use_column_width=True)
+                with col_text:
+                    st.markdown(f"**Item:** {item_info.get('item_type','Unknown')}")
+                    st.markdown(f"**Color:** {item_info.get('color','Unknown')}")
+                    st.markdown(f"**Brand:** {item_info.get('brand','Unknown')}")
+                    st.markdown(f"**Details:** {item_info.get('features','') or '—'}")
+                    st.markdown(f"**Description:** {item_info.get('description','') or '—'}")
+
+
+
+def page_lost_item() -> None:
+    """Page for reporting lost items and finding matches."""
+    st.header("Lost item")
+    st.markdown(
+        "<p class='small-muted'>Tell us about it and we’ll look for a match.</p>",
+        unsafe_allow_html=True,
+    )
+
+    item_info = None  # ensure defined
+
+    input_method = st.radio(
+        "How do you want to describe it?",
+        ["Photo", "Text"],
+        horizontal=True,
+        key="lost_method",
+    )
+
+    if input_method == "Photo":
+        uploaded_file = st.file_uploader(
+            "Photo",
+            type=["jpg", "jpeg", "png"],
+            key="lost_photo",
+        )
+        if st.button("Find matches", key="lost_photo_button"):
+            if uploaded_file is None:
+                st.warning("Please add a photo.")
+            else:
+                with st.spinner("Analyzing photo..."):
+                    image = Image.open(uploaded_file)
+
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    image_filename = f"lost_{timestamp}.jpg"
+                    image_path = os.path.join(IMAGES_DIR, image_filename)
+                    image.save(image_path)
+
+                    item_info = extract_item_info(image_path)
+                    item_info["image_path"] = image_path
+
+                    st.image(image_path, caption="Your item", width=260)
+
+    else:  # Text description
+        col1, col2 = st.columns(2)
+        with col1:
+            item_type = st.text_input("Item", placeholder="Phone, wallet, bag")
+            color = st.text_input("Color", placeholder="Black, blue, red")
+        with col2:
+            brand = st.text_input("Brand / model", placeholder="iPhone 13, Nike")
+            features = st.text_area("Details", placeholder="Cracked screen, red sticker…")
+
+        if st.button("Find matches", key="lost_text_button"):
+            if not (item_type or color or brand or features):
+                st.warning("Please add a few details.")
+            else:
+                item_info = {
+                    "item_type": item_type.strip() or "Unknown",
+                    "color": color.strip() or "Unknown",
+                    "brand": brand.strip() or "Unknown",
+                    "features": features.strip() or "",
+                    "description": f"{color} {brand} {item_type}".strip(),
+                }
+
+    # If we have a description, search for matches
     if item_info:
         item_info["timestamp"] = datetime.now().isoformat()
-        
-        # Save lost item to database
+
+        # Save lost item
         item_id = add_lost_item(item_info)
+        st.markdown(f"<p class='small-muted'>Saved as lost item ID {item_id}.</p>", unsafe_allow_html=True)
 
-        st.subheader("🎯 Potential Matches")
+        st.subheader("Possible matches")
 
-        # Get all found items from database
         found_items = get_all_found_items()
-        
         if not found_items:
-            st.info("No found items in the database yet. Consider adding a found item first.")
-        else:
-            matches = []
-            for found_item in found_items:
-                score = calculate_match_score(item_info, found_item)
-                if score >= 30:  # Threshold
-                    matches.append((score, found_item))
+            st.info("No found items yet.")
+            return
 
-            matches.sort(reverse=True, key=lambda x: x[0])
+        matches = []
+        for found_item in found_items:
+            score = calculate_match_score(item_info, found_item)
+            if score >= 30:  # threshold
+                matches.append((score, found_item))
 
-            if not matches:
-                st.warning("No matches found. Try adjusting your description or upload a clearer image.")
-            else:
-                # Display top matches as cards with progress bars
-                for score, found_item in matches[:6]:  # Top 6 matches
-                    with st.container():
-                        st.markdown("<div class='card'>", unsafe_allow_html=True)
-                        col1, col2 = st.columns([1, 3])
-                        with col1:
-                            if os.path.exists(found_item["image_path"]):
-                                st.image(found_item["image_path"], width=200)
-                        with col2:
-                            st.metric(label="Match Score", value=f"{score}%")
-                            st.markdown(f"**{found_item.get('item_type','Unknown').title()}** — {found_item.get('color','')}")
-                            st.markdown(f"**Brand:** {found_item.get('brand','Unknown')}")
-                            st.markdown(f"**Features:** {found_item.get('features','')}")
-                            st.markdown(f"**Found on:** {found_item.get('timestamp','')[:10]}")
-                            st.progress(min(score/100, 1.0))
-                        st.markdown("</div>", unsafe_allow_html=True)
+        matches.sort(reverse=True, key=lambda x: x[0])
 
-def page_view_all():
-    """Page to view all found items"""
-    st.header("📋 All Found Items")
-    
-    # Get all found items from database
+        if not matches:
+            st.warning("No clear matches yet. Try a different photo or description.")
+            return
+
+        for score, found_item in matches[:6]:
+            with st.container():
+                st.markdown("<div class='usf-card'>", unsafe_allow_html=True)
+                col_img, col_text = st.columns([1, 3])
+                with col_img:
+                    if os.path.exists(found_item.get("image_path", "")):
+                        st.image(found_item["image_path"], width=180)
+                with col_text:
+                    st.markdown(f"**Match score:** {score}%")
+                    st.markdown(
+                        f"**Item:** {found_item.get('item_type','Unknown').title()} "
+                        f"({found_item.get('color','')})"
+                    )
+                    st.markdown(f"**Brand:** {found_item.get('brand','Unknown')}")
+                    st.markdown(f"**Details:** {found_item.get('features','') or '—'}")
+                    st.markdown(f"**Found on:** {found_item.get('timestamp','')[:10]}")
+                st.markdown("</div>", unsafe_allow_html=True)
+
+
+def page_view_all() -> None:
+    """Page to view all found items."""
+    st.header("All found items")
+
     found_items = get_all_found_items()
-    
     if not found_items:
-        st.info("No items found yet. Be the first to report a found item!")
+        st.info("No items yet. Add the first found item.")
+        return
+
+    st.markdown(
+        f"<p class='small-muted'>Total items: {len(found_items)}</p>",
+        unsafe_allow_html=True,
+    )
+
+    cols = st.columns(3)
+    for idx, item in enumerate(found_items):
+        with cols[idx % 3]:
+            st.markdown("<div class='usf-card'>", unsafe_allow_html=True)
+            if item.get("image_path") and os.path.exists(item["image_path"]):
+                st.image(item["image_path"], use_container_width=True)
+            st.markdown(f"**{item.get('item_type','Unknown')}** ({item.get('color','')})")
+            st.markdown(f"Brand: {item.get('brand','Unknown')}")
+            st.markdown(f"Found: {item.get('timestamp','')[:10]}")
+            st.caption(f"ID: {item.get('id','?')}")
+            st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ---------- Main ----------
+
+def main() -> None:
+    # Sidebar navigation
+    st.sidebar.markdown("### Navigation")
+    st.sidebar.markdown(
+        "<p class='small-muted'>What do you want to do?</p>",
+        unsafe_allow_html=True,
+    )
+
+    page = st.sidebar.radio(
+        "",
+        ["Found item", "Lost item", "View items"],
+        index=0,
+        key="nav",
+    )
+
+    # Sidebar stats
+    stats = get_database_stats()
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("Database")
+    st.sidebar.metric("Found", stats.get("found_items", 0))
+    st.sidebar.metric("Lost", stats.get("lost_items", 0))
+
+    if page == "Found item":
+        page_found_item()
+    elif page == "Lost item":
+        page_lost_item()
     else:
-        st.write(f"Total found items: **{len(found_items)}**")
-        
-        # Display items in grid
-        cols = st.columns(3)
-        for idx, item in enumerate(found_items):
-            with cols[idx % 3]:
-                with st.container():
-                    if item.get("image_path") and os.path.exists(item["image_path"]):
-                        st.image(item["image_path"], use_container_width=True)
-                    st.write(f"**{item['item_type']}** ({item['color']})")
-                    st.write(f"Brand: {item['brand']}")
-                    st.write(f"Found: {item['timestamp'][:10]}")
-                    st.caption(f"ID: {item['id']}")
-                    st.divider()
+        page_view_all()
+
 
 if __name__ == "__main__":
     main()
