@@ -4,6 +4,98 @@ from datetime import datetime
 from pathlib import Path
 from PIL import Image
 
+st.set_page_config(
+    page_title="USFind",
+    page_icon="🌿",
+    layout="wide"
+)
+
+# Minimalistic nature-themed styling
+st.markdown("""
+<style>
+
+/* Page container */
+.block-container {
+    padding-top: 2rem;
+    padding-bottom: 2rem;
+    max-width: 900px;
+}
+
+/* Background: light green mist */
+.main {
+    background: linear-gradient(180deg, #F4FFF6 0%, #EFFFF5 100%);
+}
+
+/* Headers */
+h1, h2, h3 {
+    color: #1B3A29;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+.small-muted {
+    color: #5E7F6E;
+    font-size: 0.85rem;
+}
+
+/* Cards */
+.usf-card {
+    border-radius: 16px;
+    padding: 1.25rem 1.5rem;
+    background: #E2F7E8;
+    border: 1px solid #C4EBD0;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+/* Inputs */
+.stTextInput > div > div > input,
+.stTextArea textarea {
+    background-color: #F9FFF9 !important;
+    border-radius: 12px !important;
+    border: 1px solid #C6EAD2 !important;
+    color: #1B3A29 !important;
+}
+
+/* Buttons */
+.stButton button {
+    border-radius: 999px;
+    padding: 0.45rem 1.7rem;
+    border: none;
+    background: #4CAF50;
+    color: white;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+}
+.stButton button:hover {
+    background: #6BCF74;
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background-color: #E8F8EC;
+    border-right: 1px solid #C4EBD0;
+}
+section[data-testid="stSidebar"] > div {
+    padding-top: 1.5rem;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# Hero header
+st.markdown(
+    """
+    <div style="text-align:center; margin-bottom: 1.5rem;">
+        <div style="font-size: 2.1rem; font-weight: 600; color:#1B3A29; margin-bottom: 0.25rem;">
+            🌿 USFInd
+        </div>
+        <div class="small-muted">
+            A calm, light-green place to reconnect people with their lost items.
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
 # Import services
 from ai_service import extract_item_info
 from matching_service import calculate_match_score
@@ -28,7 +120,7 @@ init_database()
 
 # Page configuration
 st.set_page_config(
-    page_title="USFInd - Lost & Found",
+    page_title="USFind - Lost & Found",
     page_icon="🔍",
     layout="wide"
 )
@@ -51,7 +143,7 @@ st.markdown(
 
 # Main app
 def main():
-    st.title("🔍 USFInd - Lost & Found App")
+    st.title("🔍 USFind - Lost & Found App")
     st.markdown("*AI-Powered Item Matching System*")
     
     # (Data persisted via SQLite through `database.py` functions)
