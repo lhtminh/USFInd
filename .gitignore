@@ -11,9 +11,6 @@ env/
 venv/
 ENV/
 
-# Streamlit
-.streamlit/
-
 # Data
 data.json
 images/

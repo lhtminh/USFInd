@@ -1,0 +1,7 @@
+[theme]
+base = "light"
+primaryColor = "#4CAF50"               # fresh green
+backgroundColor = "#F4FFF6"            # soft mint-white
+secondaryBackgroundColor = "#E2F7E8"   # pale green card bg
+textColor = "#1B3A29"                  # deep natural green
+font = "sans serif"
