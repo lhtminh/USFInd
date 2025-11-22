@@ -1,25 +1,29 @@
 import streamlit as st
-import json
 import os
 from datetime import datetime
 from pathlib import Path
-import google.generativeai as genai
-from dotenv import load_dotenv
 from PIL import Image
-import traceback
 
-# Load environment variables
-load_dotenv()
-
-# Initialize Gemini
-genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
+# Import services
+from ai_service import extract_item_info
+from matching_service import calculate_match_score
+from database import (
+    init_database, 
+    add_found_item, 
+    add_lost_item, 
+    get_all_found_items, 
+    get_all_lost_items,
+    get_database_stats
+)
 
 # Configuration
-DATA_FILE = "data.json"
 IMAGES_DIR = "images"
 
 # Create images directory if it doesn't exist
 Path(IMAGES_DIR).mkdir(exist_ok=True)
+
+# Initialize database
+init_database()
 
 # Page configuration
 st.set_page_config(
@@ -80,14 +84,10 @@ Format your response as JSON with these exact keys: item_type, color, brand, fea
             content = content.split("```json")[1].split("```")[0].strip()
         elif "```" in content:
             content = content.split("```")[1].split("```")[0].strip()
-
+        
         return json.loads(content)
     except Exception as e:
-        # Log traceback to help debugging
-        traceback_str = traceback.format_exc()
-        st.warning("AI extraction failed — you can enter details manually.")
-        # Optionally print traceback in debug mode
-        st.debug(traceback_str) if hasattr(st, "debug") else None
+        st.error(f"Error extracting item info: {str(e)}")
         return {
             "item_type": "Unknown",
             "color": "Unknown",
@@ -124,8 +124,8 @@ def calculate_match_score(lost_item, found_item):
 
 # Main app
 def main():
-    st.markdown('<div class="big-title">🔍 USFInd - Lost & Found</div>', unsafe_allow_html=True)
-    st.markdown("<div class='muted'>AI-assisted reporting and matching for lost & found items</div>", unsafe_allow_html=True)
+    st.title("🔍 USFInd - Lost & Found App")
+    st.markdown("*AI-Powered Item Matching System*")
     
     # Load data
     data = load_data()
@@ -139,14 +139,22 @@ def main():
         st.write("• If AI extraction fails, use the manual description option.")
         st.write("• Matches are heuristic-based; check details carefully.")
     
+    # Display stats in sidebar
+    stats = get_database_stats()
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("📊 Database Stats")
+    st.sidebar.metric("Found Items", stats['found_items'])
+    st.sidebar.metric("Lost Items", stats['lost_items'])
+    st.sidebar.metric("Total Items", stats['total_items'])
+    
     if page == "📤 Report Found Item":
-        page_found_item(data)
+        page_found_item()
     elif page == "🔎 Report Lost Item":
-        page_lost_item(data)
+        page_lost_item()
     else:
-        page_view_all(data)
+        page_view_all()
 
-def page_found_item(data):
+def page_found_item():
     """Page for reporting found items"""
     st.header("📤 Report a Found Item")
     st.write("Upload a clear image of the found item. The app will try to extract details using AI — you can edit them before saving.")
@@ -206,7 +214,7 @@ def page_found_item(data):
                 st.markdown(f"**Features:** {item_info.get('features','')}")
                 st.markdown(f"**Description:** {item_info.get('description','')}")
 
-def page_lost_item(data):
+def page_lost_item():
     """Page for reporting lost items"""
     st.header("🔎 Report a Lost Item")
     st.write("Upload a photo or enter a description to search for potential matches among reported found items.")
@@ -255,17 +263,20 @@ def page_lost_item(data):
     # Find matches
     if item_info:
         item_info["timestamp"] = datetime.now().isoformat()
-        item_info["type"] = "lost"
-        data["lost_items"].append(item_info)
-        save_data(data)
+        
+        # Save lost item to database
+        item_id = add_lost_item(item_info)
 
         st.subheader("🎯 Potential Matches")
 
-        if not data["found_items"]:
+        # Get all found items from database
+        found_items = get_all_found_items()
+        
+        if not found_items:
             st.info("No found items in the database yet. Consider adding a found item first.")
         else:
             matches = []
-            for found_item in data["found_items"]:
+            for found_item in found_items:
                 score = calculate_match_score(item_info, found_item)
                 if score >= 30:  # Threshold
                     matches.append((score, found_item))
@@ -281,7 +292,7 @@ def page_lost_item(data):
                         st.markdown("<div class='card'>", unsafe_allow_html=True)
                         col1, col2 = st.columns([1, 3])
                         with col1:
-                            if os.path.exists(found_item.get("image_path", "")):
+                            if os.path.exists(found_item["image_path"]):
                                 st.image(found_item["image_path"], width=200)
                         with col2:
                             st.metric(label="Match Score", value=f"{score}%")
@@ -292,25 +303,29 @@ def page_lost_item(data):
                             st.progress(min(score/100, 1.0))
                         st.markdown("</div>", unsafe_allow_html=True)
 
-def page_view_all(data):
+def page_view_all():
     """Page to view all found items"""
     st.header("📋 All Found Items")
     
-    if not data["found_items"]:
+    # Get all found items from database
+    found_items = get_all_found_items()
+    
+    if not found_items:
         st.info("No items found yet. Be the first to report a found item!")
     else:
-        st.write(f"Total found items: **{len(data['found_items'])}**")
+        st.write(f"Total found items: **{len(found_items)}**")
         
         # Display items in grid
         cols = st.columns(3)
-        for idx, item in enumerate(data["found_items"]):
+        for idx, item in enumerate(found_items):
             with cols[idx % 3]:
                 with st.container():
-                    if os.path.exists(item["image_path"]):
+                    if item.get("image_path") and os.path.exists(item["image_path"]):
                         st.image(item["image_path"], use_container_width=True)
                     st.write(f"**{item['item_type']}** ({item['color']})")
                     st.write(f"Brand: {item['brand']}")
                     st.write(f"Found: {item['timestamp'][:10]}")
+                    st.caption(f"ID: {item['id']}")
                     st.divider()
 
 if __name__ == "__main__":
