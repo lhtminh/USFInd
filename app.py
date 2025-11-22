@@ -3,16 +3,11 @@ import json
 import os
 from datetime import datetime
 from pathlib import Path
-import base64
-from openai import OpenAI
-from dotenv import load_dotenv
 from PIL import Image
 
-# Load environment variables
-load_dotenv()
-
-# Initialize OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Import services
+from ai_service import extract_item_info
+from matching_service import calculate_match_score
 
 # Configuration
 DATA_FILE = "data.json"
@@ -41,89 +36,7 @@ def save_data(data):
     with open(DATA_FILE, 'w') as f:
         json.dump(data, f, indent=2)
 
-def encode_image_to_base64(image_path):
-    """Encode image to base64 for OpenAI API"""
-    with open(image_path, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode('utf-8')
 
-def extract_item_info(image_path):
-    """Use OpenAI Vision API to extract item information"""
-    try:
-        base64_image = encode_image_to_base64(image_path)
-        
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": """Analyze this image of a lost/found item and extract the following information in a structured format:
-- Item Type: (e.g., phone, wallet, keys, bag, etc.)
-- Color: (primary color)
-- Brand/Model: (if visible)
-- Distinctive Features: (unique characteristics, damages, stickers, etc.)
-- Description: (brief overall description)
-
-Format your response as JSON with these exact keys: item_type, color, brand, features, description"""
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
-                            }
-                        }
-                    ]
-                }
-            ],
-            max_tokens=300
-        )
-        
-        # Parse the response
-        content = response.choices[0].message.content
-        # Try to extract JSON from response
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0].strip()
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0].strip()
-        
-        return json.loads(content)
-    except Exception as e:
-        st.error(f"Error extracting item info: {str(e)}")
-        return {
-            "item_type": "Unknown",
-            "color": "Unknown",
-            "brand": "Unknown",
-            "features": "Could not extract",
-            "description": "Manual description needed"
-        }
-
-def calculate_match_score(lost_item, found_item):
-    """Calculate similarity score between lost and found items"""
-    score = 0
-    
-    # Compare item types (highest weight)
-    if lost_item.get("item_type", "").lower() == found_item.get("item_type", "").lower():
-        score += 40
-    
-    # Compare colors
-    if lost_item.get("color", "").lower() in found_item.get("color", "").lower() or \
-       found_item.get("color", "").lower() in lost_item.get("color", "").lower():
-        score += 25
-    
-    # Compare brands
-    if lost_item.get("brand", "").lower() == found_item.get("brand", "").lower() and lost_item.get("brand", "") != "Unknown":
-        score += 20
-    
-    # Compare features (keyword matching)
-    lost_features = set(lost_item.get("features", "").lower().split())
-    found_features = set(found_item.get("features", "").lower().split())
-    feature_overlap = len(lost_features & found_features)
-    if feature_overlap > 0:
-        score += min(15, feature_overlap * 5)
-    
-    return score
 
 # Main app
 def main():
@@ -167,27 +80,34 @@ def page_found_item(data):
                 # Extract info using AI
                 item_info = extract_item_info(image_path)
                 
-                # Add metadata
-                item_info["image_path"] = image_path
-                item_info["timestamp"] = datetime.now().isoformat()
-                item_info["type"] = "found"
-                
-                # Save to database
-                data["found_items"].append(item_info)
-                save_data(data)
-                
-                st.success("✅ Item successfully added to the database!")
-                
-                # Display extracted information
-                st.subheader("Extracted Information:")
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.write(f"**Item Type:** {item_info['item_type']}")
-                    st.write(f"**Color:** {item_info['color']}")
-                    st.write(f"**Brand:** {item_info['brand']}")
-                with col2:
-                    st.write(f"**Features:** {item_info['features']}")
-                    st.write(f"**Description:** {item_info['description']}")
+                # Only save if extraction was successful
+                if item_info.get("item_type") != "Unknown":
+                    # Add metadata
+                    item_info["image_path"] = image_path
+                    item_info["timestamp"] = datetime.now().isoformat()
+                    item_info["type"] = "found"
+                    
+                    # Save to database
+                    data["found_items"].append(item_info)
+                    save_data(data)
+                    
+                    st.success("✅ Item successfully added to the database!")
+                    
+                    # Display extracted information
+                    st.subheader("Extracted Information:")
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**Item Type:** {item_info['item_type']}")
+                        st.write(f"**Color:** {item_info['color']}")
+                        st.write(f"**Brand:** {item_info['brand']}")
+                    with col2:
+                        st.write(f"**Features:** {item_info['features']}")
+                        st.write(f"**Description:** {item_info['description']}")
+                else:
+                    st.error("❌ Failed to extract item information. Please check your API key and try again.")
+                    # Clean up the saved image
+                    if os.path.exists(image_path):
+                        os.remove(image_path)
 
 def page_lost_item(data):
     """Page for reporting lost items"""
