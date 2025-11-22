@@ -17,6 +17,8 @@ ENV/
 # Data
 data.json
 images/
+*.db
+lostandfound.db
 
 # IDE
 .vscode/
