@@ -1,5 +1,3 @@
-"""Matching service for comparing lost and found items"""
-
 def calculate_match_score(lost_item, found_item):
     """Calculate similarity score between lost and found items"""
     score = 0
