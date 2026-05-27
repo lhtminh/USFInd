@@ -67,8 +67,7 @@ def get_settings() -> Settings:
         return Settings()
     except ValidationError as exc:
         details = "\n".join(
-            f"  - {'.'.join(str(loc) for loc in err['loc'])}: {err['msg']}"
-            for err in exc.errors()
+            f"  - {'.'.join(str(loc) for loc in err['loc'])}: {err['msg']}" for err in exc.errors()
         )
         raise RuntimeError(
             "Invalid or missing environment configuration:\n"
