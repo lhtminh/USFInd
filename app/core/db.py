@@ -306,6 +306,23 @@ def list_user_items(user_id: UUID) -> list[Item]:
 
 
 @_retry_on_connection_error()
+def list_items_by_ids(item_ids: list[UUID]) -> dict[UUID, Item]:
+    """Fetch multiple items by id in one query; returns a {id: Item} mapping."""
+    if not item_ids:
+        return {}
+    with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT i.*, u.name AS poster_name
+            FROM items i JOIN users u ON u.id = i.user_id
+            WHERE i.id = ANY(%s)
+            """,
+            (item_ids,),
+        )
+        return {row["id"]: Item.model_validate(row) for row in cur.fetchall()}
+
+
+@_retry_on_connection_error()
 def list_items_by_embedding_status(status: EmbeddingStatus) -> list[Item]:
     """List items in a given embedding pipeline state (used by backfill)."""
     with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
