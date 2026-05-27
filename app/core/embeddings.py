@@ -18,6 +18,8 @@ import torch
 from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
 
+from app.core import cache
+
 logger = logging.getLogger(__name__)
 
 MODEL_NAME = "openai/clip-vit-base-patch32"
@@ -159,11 +161,42 @@ def embed_text_batch(texts: list[str], batch_size: int = 32) -> np.ndarray:
     return _l2_normalize(arr)
 
 
+def _content_bytes(image: ImageInput) -> bytes:
+    """Return stable bytes for cache hashing across the accepted input types."""
+    if isinstance(image, bytes | bytearray):
+        return bytes(image)
+    if isinstance(image, Path):
+        return image.read_bytes()
+    if isinstance(image, Image.Image):
+        rgb = image.convert("RGB")
+        return rgb.tobytes() + repr(rgb.size).encode("utf-8")
+    raise EmbeddingError(f"Unsupported image input type: {type(image)!r}")
+
+
 def embed_image(image: ImageInput) -> np.ndarray:
-    """Encode a single image into a (512,) float32, L2-normalized vector."""
-    return embed_image_batch([image])[0]
+    """Encode a single image into a (512,) float32, L2-normalized vector.
+
+    Checks the Redis embedding cache by image content hash first, computing and
+    caching on a miss.
+    """
+    content = _content_bytes(image)
+    cached = cache.get_cached_image_embedding(content)
+    if cached is not None:
+        return cached
+    vector = embed_image_batch([image])[0]
+    cache.set_cached_image_embedding(content, vector)
+    return vector
 
 
 def embed_text(text: str) -> np.ndarray:
-    """Encode a single text into a (512,) float32, L2-normalized vector."""
-    return embed_text_batch([text])[0]
+    """Encode a single text into a (512,) float32, L2-normalized vector.
+
+    Checks the Redis embedding cache by text content hash first, computing and
+    caching on a miss.
+    """
+    cached = cache.get_cached_text_embedding(text)
+    if cached is not None:
+        return cached
+    vector = embed_text_batch([text])[0]
+    cache.set_cached_text_embedding(text, vector)
+    return vector
