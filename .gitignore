@@ -1,23 +1,37 @@
-# Environment variables
-.env
-
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
 venv/
+env/
 ENV/
 
-# Data
-data.json
-images/
+# Environment / secrets
+.env
+
+# Test / lint caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local dev data
+/data/
 *.db
 lostandfound.db
 
-# IDE
+# OS / editor
+.DS_Store
 .vscode/
 .idea/
 *.swp
