@@ -97,6 +97,22 @@ class TestDb:
 
         assert db.get_item(uuid4()) is None
 
+    def test_insert_item_with_explicit_id(self):
+        from uuid import uuid4
+
+        user = db.upsert_user("j@usf.edu", "Jo")
+        item_id = uuid4()
+        item = db.insert_item(user.id, "found", "t", None, "u", "k", None, item_id=item_id)
+        assert item.id == item_id
+
+    def test_list_items_by_embedding_status(self):
+        user = db.upsert_user("emb@usf.edu", "Em")
+        ready = db.insert_item(user.id, "lost", "ready-item", None, "u", "k", None)
+        db.update_embedding_status(ready.id, "ready")
+        db.insert_item(user.id, "lost", "pending-item", None, "u", "k", None)
+        titles = {it.title for it in db.list_items_by_embedding_status("ready")}
+        assert titles == {"ready-item"}
+
     def test_list_items_filters_and_pagination(self):
         user = db.upsert_user("d@usf.edu", "Dan")
         for i in range(3):

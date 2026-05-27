@@ -34,6 +34,8 @@ class StorageError(Exception):
 class ImageStorage(Protocol):
     def upload(self, key: str, image_bytes: bytes, content_type: str) -> str: ...
 
+    def download(self, key: str) -> bytes: ...
+
     def delete(self, key: str) -> None: ...
 
     def get_url(self, key: str) -> str: ...
@@ -50,6 +52,13 @@ class LocalImageStorage:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(image_bytes)
         return self.get_url(key)
+
+    def download(self, key: str) -> bytes:
+        path = self.base_dir / key
+        try:
+            return path.read_bytes()
+        except OSError as exc:
+            raise StorageError(f"Local read failed for {key}: {exc}") from exc
 
     def delete(self, key: str) -> None:
         path = self.base_dir / key
@@ -88,6 +97,13 @@ class R2ImageStorage:
         except Exception as exc:
             raise StorageError(f"R2 upload failed for {key}: {exc}") from exc
         return self.get_url(key)
+
+    def download(self, key: str) -> bytes:
+        try:
+            response = self.client.get_object(Bucket=self.bucket, Key=key)
+            return response["Body"].read()
+        except Exception as exc:
+            raise StorageError(f"R2 download failed for {key}: {exc}") from exc
 
     def delete(self, key: str) -> None:
         try:

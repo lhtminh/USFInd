@@ -96,5 +96,28 @@ def test_r2_storage_with_moto():
             client.get_object(Bucket="usfind-images", Key="items/u/i.jpg")
 
 
+def test_local_download_roundtrip(tmp_path):
+    store = storage.LocalImageStorage(base_dir=tmp_path)
+    store.upload("a/b.jpg", b"xyz", "image/jpeg")
+    assert store.download("a/b.jpg") == b"xyz"
+
+
+def test_local_download_missing_raises(tmp_path):
+    store = storage.LocalImageStorage(base_dir=tmp_path)
+    with pytest.raises(storage.StorageError):
+        store.download("nope.jpg")
+
+
+def test_r2_download_with_moto():
+    with mock_aws():
+        client = boto3.client("s3", region_name="us-east-1")
+        client.create_bucket(Bucket="usfind-images")
+        store = storage.R2ImageStorage(
+            client=client, bucket="usfind-images", public_url="https://cdn.test"
+        )
+        store.upload("k.jpg", b"payload", "image/jpeg")
+        assert store.download("k.jpg") == b"payload"
+
+
 def test_get_storage_returns_local_in_local_env():
     assert isinstance(storage.get_storage(), storage.LocalImageStorage)

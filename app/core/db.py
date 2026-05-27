@@ -221,17 +221,25 @@ def insert_item(
     image_url: str,
     image_key: str,
     location: str | None,
+    item_id: UUID | None = None,
 ) -> Item:
-    """Insert a new item (status 'open', embedding_status 'pending'). Returns the row."""
+    """Insert a new item (status 'open', embedding_status 'pending'). Returns the row.
+
+    An explicit ``item_id`` may be supplied so callers can derive the storage key
+    from the same id before the row exists; otherwise the database assigns one.
+    """
+    columns = ["user_id", "type", "title", "description", "image_url", "image_key", "location"]
+    values: list[Any] = [user_id, type, title, description, image_url, image_key, location]
+    if item_id is not None:
+        columns.insert(0, "id")
+        values.insert(0, item_id)
+    # Column names are fixed literals (not user input); values are parameterized.
+    query = (
+        f"INSERT INTO items ({', '.join(columns)}) "
+        f"VALUES ({', '.join(['%s'] * len(values))}) RETURNING *"
+    )
     with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
-        cur.execute(
-            """
-            INSERT INTO items (user_id, type, title, description, image_url, image_key, location)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            RETURNING *
-            """,
-            (user_id, type, title, description, image_url, image_key, location),
-        )
+        cur.execute(query, values)
         row = cur.fetchone()
         conn.commit()
         return Item.model_validate(row)
@@ -293,6 +301,22 @@ def list_user_items(user_id: UUID) -> list[Item]:
             ORDER BY i.created_at DESC
             """,
             (user_id,),
+        )
+        return [Item.model_validate(r) for r in cur.fetchall()]
+
+
+@_retry_on_connection_error()
+def list_items_by_embedding_status(status: EmbeddingStatus) -> list[Item]:
+    """List items in a given embedding pipeline state (used by backfill)."""
+    with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT i.*, u.name AS poster_name
+            FROM items i JOIN users u ON u.id = i.user_id
+            WHERE i.embedding_status = %s
+            ORDER BY i.created_at ASC
+            """,
+            (status,),
         )
         return [Item.model_validate(r) for r in cur.fetchall()]
 
