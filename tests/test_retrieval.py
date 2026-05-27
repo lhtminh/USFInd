@@ -107,3 +107,65 @@ class TestStage1Recall:
         item = db.insert_item(user.id, "lost", "no-embeddings", None, "u", "k", None)
         with pytest.raises(retrieval.RetrievalError):
             retrieval.stage1_recall(item.id)
+
+
+def _candidate(item, combined=0.8):
+    return retrieval.Candidate(
+        item_id=item.id,
+        combined_score=combined,
+        image_score=combined,
+        text_score=combined,
+        item=item,
+        stage1_rank=1,
+    )
+
+
+class TestStage2Rerank:
+    def test_rerank_filters_below_threshold_and_sorts(self, monkeypatch):
+        user = db.upsert_user("rr@usf.edu", "Ree")
+        query = db.insert_item(user.id, "lost", "query", None, "u", "k", None)
+        a = db.insert_item(user.id, "found", "A", None, "u", "k", None)
+        b = db.insert_item(user.id, "found", "B", None, "u", "k", None)
+        c = db.insert_item(user.id, "found", "C", None, "u", "k", None)
+        candidates = [_candidate(a), _candidate(b), _candidate(c)]
+
+        rankings = [
+            {"candidate_index": 1, "rerank_score": 90, "explanation": "exact match"},
+            {"candidate_index": 2, "rerank_score": 30, "explanation": "different color"},
+            {"candidate_index": 3, "rerank_score": 70, "explanation": "likely match"},
+        ]
+        monkeypatch.setattr(
+            retrieval.llm, "cached_call_pro", lambda *a, **k: {"rankings": rankings}
+        )
+
+        result = retrieval.stage2_rerank(query, candidates, top_k=10)
+
+        assert [c.item_id for c in result] == [a.id, c.id]  # B dropped (30 < 40)
+        assert result[0].rerank_score == 90
+        assert result[0].explanation == "exact match"
+
+    def test_rerank_empty_returns_empty(self):
+        user = db.upsert_user("empty@usf.edu", "Emp")
+        query = db.insert_item(user.id, "lost", "q", None, "u", "k", None)
+        assert retrieval.stage2_rerank(query, [], top_k=10) == []
+
+    def test_full_retrieval_combines_stages(self, monkeypatch):
+        user = db.upsert_user("full@usf.edu", "Fud")
+        query = _seed_item(user.id, "lost", 0, 1, "query")
+        a = _seed_item(user.id, "found", 0, 1, "A")
+
+        monkeypatch.setattr(
+            retrieval.llm,
+            "cached_call_pro",
+            lambda *args, **kwargs: {
+                "rankings": [{"candidate_index": 1, "rerank_score": 88, "explanation": "match"}]
+            },
+        )
+
+        result = retrieval.full_retrieval(query.id, final_k=10)
+
+        assert result.stage1_count >= 1
+        assert [c.item_id for c in result.candidates] == [a.id]
+        assert result.candidates[0].rerank_score == 88
+        assert result.cache_hit is False
+        assert result.total_ms >= 0

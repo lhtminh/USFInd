@@ -7,15 +7,18 @@ precise re-scoring with explanations.
 
 from __future__ import annotations
 
+import io
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from uuid import UUID
 
+from PIL import Image
 from pydantic import BaseModel
 
-from app.core import db, vectors
+from app.core import db, llm, storage, vectors
 from app.core.db import Item
 
 logger = logging.getLogger(__name__)
@@ -24,6 +27,29 @@ IMAGE_WEIGHT = 0.7
 TEXT_WEIGHT = 0.3
 COMBINED_THRESHOLD = 0.45
 RECALL_WINDOW_DAYS = 60
+
+RERANK_INPUT_CAP = 20
+RERANK_THRESHOLD = 40
+PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
+
+_RERANK_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "rankings": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "candidate_index": {"type": "integer"},
+                    "rerank_score": {"type": "integer", "minimum": 0, "maximum": 100},
+                    "explanation": {"type": "string"},
+                },
+                "required": ["candidate_index", "rerank_score", "explanation"],
+            },
+        }
+    },
+    "required": ["rankings"],
+}
 
 
 class RetrievalError(Exception):
@@ -39,6 +65,15 @@ class Candidate(BaseModel):
     stage1_rank: int = 0
     rerank_score: float | None = None
     explanation: str | None = None
+
+
+class RetrievalResult(BaseModel):
+    candidates: list[Candidate]
+    stage1_count: int
+    stage1_ms: float
+    stage2_ms: float
+    total_ms: float
+    cache_hit: bool = False
 
 
 def stage1_recall(query_item_id: UUID, top_k: int = 50) -> list[Candidate]:
@@ -109,3 +144,99 @@ def stage1_recall(query_item_id: UUID, top_k: int = 50) -> list[Candidate]:
         (time.perf_counter() - start) * 1000,
     )
     return candidates
+
+
+def _load_prompt(name: str) -> str:
+    return (PROMPTS_DIR / name).read_text(encoding="utf-8")
+
+
+def _item_metadata(item: Item) -> str:
+    return (
+        f"type={item.type}; title={item.title}; "
+        f"description={item.description or ''}; location={item.location or ''}"
+    )
+
+
+def _load_image(item: Item) -> Image.Image | None:
+    """Best-effort load of an item's image for the LLM; None if unavailable."""
+    try:
+        data = storage.get_storage().download(item.image_key)
+        return Image.open(io.BytesIO(data)).convert("RGB")
+    except Exception:
+        logger.warning("Could not load image for item %s during rerank", item.id)
+        return None
+
+
+def _build_rerank_parts(query_item: Item, candidates: list[Candidate]) -> list:
+    parts: list = ["QUERY ITEM:\n" + _item_metadata(query_item)]
+    query_image = _load_image(query_item)
+    if query_image is not None:
+        parts.append(query_image)
+    parts.append(f"CANDIDATES (numbered 1-{len(candidates)}):")
+    for index, candidate in enumerate(candidates, start=1):
+        parts.append(f"[{index}] " + _item_metadata(candidate.item))
+        candidate_image = _load_image(candidate.item)
+        if candidate_image is not None:
+            parts.append(candidate_image)
+    parts.append("Rank each candidate by likelihood of being the same physical item.")
+    return parts
+
+
+def stage2_rerank(
+    query_item: Item, candidates: list[Candidate], top_k: int = 10
+) -> list[Candidate]:
+    """Re-score the top stage-1 candidates with Gemini Pro and keep the best.
+
+    Caps input at 20 candidates, attaches a 0-100 rerank score and explanation,
+    drops anything below 40, and returns the top ``top_k`` by score. Tolerates a
+    query item with no loadable image (e.g. conversational search).
+    """
+    if not candidates:
+        return []
+
+    capped = candidates[:RERANK_INPUT_CAP]
+    system_instruction = _load_prompt("rerank.txt")
+    parts = _build_rerank_parts(query_item, capped)
+    response = llm.cached_call_pro(
+        parts, system_instruction=system_instruction, response_schema=_RERANK_SCHEMA
+    )
+
+    by_index = {r["candidate_index"]: r for r in response.get("rankings", [])}
+    reranked: list[Candidate] = []
+    for index, candidate in enumerate(capped, start=1):
+        ranking = by_index.get(index)
+        if ranking is None:
+            continue
+        candidate.rerank_score = float(ranking["rerank_score"])
+        candidate.explanation = ranking.get("explanation")
+        if candidate.rerank_score >= RERANK_THRESHOLD:
+            reranked.append(candidate)
+
+    reranked.sort(key=lambda c: c.rerank_score or 0.0, reverse=True)
+    return reranked[:top_k]
+
+
+def full_retrieval(query_item_id: UUID, final_k: int = 10) -> RetrievalResult:
+    """Run both retrieval stages and return ranked matches with timings."""
+    overall_start = time.perf_counter()
+
+    stage1_start = time.perf_counter()
+    candidates = stage1_recall(query_item_id)
+    stage1_ms = (time.perf_counter() - stage1_start) * 1000
+
+    query_item = db.get_item(query_item_id)
+    if query_item is None:
+        raise RetrievalError(f"Query item {query_item_id} not found")
+
+    stage2_start = time.perf_counter()
+    reranked = stage2_rerank(query_item, candidates, top_k=final_k)
+    stage2_ms = (time.perf_counter() - stage2_start) * 1000
+
+    return RetrievalResult(
+        candidates=reranked,
+        stage1_count=len(candidates),
+        stage1_ms=stage1_ms,
+        stage2_ms=stage2_ms,
+        total_ms=(time.perf_counter() - overall_start) * 1000,
+        cache_hit=False,
+    )
