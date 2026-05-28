@@ -91,3 +91,21 @@ def test_search_page_renders_input():
 
     at = AppTest.from_file(str(_PAGES / "5_Search.py")).run(timeout=60)
     assert not at.exception
+
+
+def test_me_page_logged_out_runs():
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(str(_PAGES / "6_Me.py")).run(timeout=60)
+    assert not at.exception  # require_login halts via st.stop
+
+
+def test_me_page_logged_in_renders():
+    from uuid import uuid4
+
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(str(_PAGES / "6_Me.py"))
+    at.session_state["user"] = {"id": str(uuid4()), "email": "x@usf.edu", "name": "X"}
+    at.run(timeout=60)
+    assert not at.exception

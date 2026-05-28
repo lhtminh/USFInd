@@ -10,12 +10,24 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import streamlit as st  # noqa: E402
 
-from app.core import db, retrieval  # noqa: E402
-from app.ui_common import init_app, relative_time, render_sidebar, type_badge_html  # noqa: E402
+from app.core import db, items, retrieval  # noqa: E402
+from app.ui_common import (  # noqa: E402
+    init_app,
+    relative_time,
+    render_sidebar,
+    require_login,
+    type_badge_html,
+)
 
 st.set_page_config(page_title="Matches · USFind", page_icon="✨", layout="wide")
 init_app()
 render_sidebar()
+user = require_login()
+
+# Surface the most recent confirmation result across reruns.
+_match_msg = st.session_state.pop("_last_match_msg", None)
+if _match_msg:
+    (st.success if _match_msg.startswith("✅") else st.error)(_match_msg)
 
 raw_id = st.query_params.get("id") or st.session_state.get("view_item_id")
 if not raw_id:
@@ -89,8 +101,43 @@ else:
                             "rerank_score": candidate.rerank_score,
                         }
                     )
-                if st.button("This is mine!", key=f"mine_{item.id}"):
-                    st.info("Match confirmation arrives in the next build step.")
+                pending_key = f"_pending_confirm_{item.id}"
+                if not st.session_state.get(pending_key):
+                    if st.button("This is mine!", key=f"mine_{item.id}"):
+                        st.session_state[pending_key] = True
+                        st.rerun()
+                else:
+                    st.warning(
+                        f"Confirm **{item.title}** is the same as your "
+                        f"**{query_item.title}**? The poster's email will be shared "
+                        "so you can coordinate."
+                    )
+                    yes_col, no_col = st.columns(2)
+                    with yes_col:
+                        if st.button("Yes, confirm", key=f"yes_{item.id}", type="primary"):
+                            try:
+                                items.confirm_match(
+                                    query_item.id,
+                                    candidate.item_id,
+                                    UUID(user["id"]),
+                                    candidate.combined_score,
+                                    candidate.rerank_score,
+                                )
+                                other = db.get_user(item.user_id)
+                                contact = other.email if other else "the poster"
+                                st.session_state["_last_match_msg"] = (
+                                    f"✅ Match confirmed! Contact: {contact}"
+                                )
+                            except Exception:
+                                st.session_state["_last_match_msg"] = (
+                                    "❌ Couldn't confirm the match. Please try again."
+                                )
+                            st.session_state.pop(pending_key, None)
+                            st.rerun()
+                    with no_col:
+                        if st.button("Cancel", key=f"no_{item.id}"):
+                            st.session_state.pop(pending_key, None)
+                            st.rerun()
 
 st.divider()
 st.caption(

@@ -84,6 +84,31 @@ def create_item(
     return refreshed if refreshed is not None else item
 
 
+def confirm_match(
+    query_item_id: UUID,
+    matched_item_id: UUID,
+    confirmed_by_user_id: UUID,
+    combined_score: float,
+    rerank_score: float | None,
+) -> db.Match:
+    """Record a confirmed match, close both items, and remove them from Qdrant."""
+    match = db.insert_match(
+        query_item_id,
+        matched_item_id,
+        confirmed_by_user_id,
+        combined_score,
+        rerank_score,
+    )
+    db.update_item_status(query_item_id, "matched")
+    db.update_item_status(matched_item_id, "matched")
+    try:
+        vectors.delete_item(query_item_id)
+        vectors.delete_item(matched_item_id)
+    except Exception:
+        logger.exception("Failed to remove matched items from Qdrant (DB state already matched)")
+    return match
+
+
 def backfill_failed_embeddings() -> dict[str, int]:
     """Retry embedding + indexing for every item marked 'failed'.
 

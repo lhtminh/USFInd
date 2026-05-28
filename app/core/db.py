@@ -196,6 +196,43 @@ def run_migrations() -> list[str]:
 
 
 @_retry_on_connection_error()
+def get_user(user_id: UUID) -> User | None:
+    """Fetch a user row by id, or None if absent."""
+    with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+        return User.model_validate(row) if row else None
+
+
+@_retry_on_connection_error()
+def list_user_matches(user_id: UUID) -> list[dict]:
+    """List confirmed matches involving any item the user posted or confirmed.
+
+    Each row contains both items' titles/images/owners plus the match record so
+    the UI can render both sides without further joins.
+    """
+    with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT
+              m.id, m.combined_score, m.rerank_score, m.created_at AS confirmed_at,
+              m.confirmed_by_user_id,
+              ia.id AS item_a_id, ia.title AS item_a_title,
+              ia.image_url AS item_a_image, ia.user_id AS item_a_user_id,
+              ib.id AS item_b_id, ib.title AS item_b_title,
+              ib.image_url AS item_b_image, ib.user_id AS item_b_user_id
+            FROM matches m
+            JOIN items ia ON ia.id = m.item_a_id
+            JOIN items ib ON ib.id = m.item_b_id
+            WHERE ia.user_id = %s OR ib.user_id = %s OR m.confirmed_by_user_id = %s
+            ORDER BY m.created_at DESC
+            """,
+            (user_id, user_id, user_id),
+        )
+        return [dict(row) for row in cur.fetchall()]
+
+
+@_retry_on_connection_error()
 def upsert_user(email: str, name: str | None = None) -> User:
     """Insert a user by email, or update the name on conflict. Returns the row."""
     with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
