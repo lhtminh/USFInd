@@ -84,3 +84,10 @@ def test_matches_page_without_id_runs():
 
     at = AppTest.from_file(str(_PAGES / "4_Matches.py")).run(timeout=60)
     assert not at.exception
+
+
+def test_search_page_renders_input():
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(str(_PAGES / "5_Search.py")).run(timeout=60)
+    assert not at.exception

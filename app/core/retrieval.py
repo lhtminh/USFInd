@@ -14,12 +14,13 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from uuid import UUID
+from typing import Literal
+from uuid import UUID, uuid4
 
 from PIL import Image
 from pydantic import BaseModel
 
-from app.core import cache, db, llm, storage, vectors
+from app.core import cache, db, embeddings, llm, storage, vectors
 from app.core.db import Item
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,22 @@ RECALL_WINDOW_DAYS = 60
 
 RERANK_INPUT_CAP = 20
 RERANK_THRESHOLD = 40
+SEARCH_RECALL_K = 30
+SEARCH_TEXT_THRESHOLD = 0.30
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
+
+PARSE_SEARCH_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "item_type": {"type": "string"},
+        "color": {"type": "string"},
+        "location": {"type": "string"},
+        "time_window_hours": {"type": "integer"},
+        "search_type": {"type": "string", "enum": ["lost", "found", "either"]},
+        "semantic_query": {"type": "string"},
+    },
+    "required": ["semantic_query", "search_type"],
+}
 
 _RERANK_SCHEMA = {
     "type": "object",
@@ -75,6 +91,15 @@ class RetrievalResult(BaseModel):
     stage2_ms: float
     total_ms: float
     cache_hit: bool = False
+
+
+class ParsedSearch(BaseModel):
+    semantic_query: str
+    search_type: Literal["lost", "found", "either"] = "either"
+    item_type: str | None = None
+    color: str | None = None
+    location: str | None = None
+    time_window_hours: int | None = None
 
 
 def stage1_recall(query_item_id: UUID, top_k: int = 50) -> list[Candidate]:
@@ -260,4 +285,104 @@ def full_retrieval(query_item_id: UUID, final_k: int = 10) -> RetrievalResult:
         stage2_ms=stage2_ms,
         total_ms=(time.perf_counter() - overall_start) * 1000,
         cache_hit=cache_hit,
+    )
+
+
+def parse_search_query(query: str) -> ParsedSearch:
+    """Use Gemini Flash to parse a free-text search into structured filters."""
+    system_instruction = _load_prompt("parse_search.txt")
+    response = llm.cached_call_flash(
+        parts=[query],
+        system_instruction=system_instruction,
+        response_schema=PARSE_SEARCH_SCHEMA,
+    )
+    # The schema guarantees semantic_query + search_type; fall back defensively.
+    response.setdefault("semantic_query", query)
+    response.setdefault("search_type", "either")
+    return ParsedSearch.model_validate(response)
+
+
+def _virtual_query_item(parsed: ParsedSearch) -> Item:
+    """Construct a placeholder Item for stage 2 rerank in conversational search."""
+    now = datetime.now(UTC)
+    inferred_type = "lost" if parsed.search_type == "found" else "found"
+    return Item(
+        id=uuid4(),
+        user_id=uuid4(),
+        type=inferred_type,
+        title=parsed.semantic_query,
+        description=None,
+        ai_description=None,
+        image_url="",
+        image_key="",
+        location=parsed.location,
+        status="open",
+        embedding_status="ready",
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def conversational_search(
+    parsed: ParsedSearch, top_k: int = SEARCH_RECALL_K, final_k: int = 10
+) -> RetrievalResult:
+    """Text-only recall (CLIP embedding of the parsed query) + Gemini Pro rerank."""
+    overall_start = time.perf_counter()
+
+    stage1_start = time.perf_counter()
+    text_vector = embeddings.embed_text(parsed.semantic_query)
+
+    type_filter: str | None
+    if parsed.search_type == "lost":
+        type_filter = "found"
+    elif parsed.search_type == "found":
+        type_filter = "lost"
+    else:
+        type_filter = None
+
+    created_after: int | None = None
+    if parsed.time_window_hours and parsed.time_window_hours > 0:
+        created_after = int(
+            (datetime.now(UTC) - timedelta(hours=parsed.time_window_hours)).timestamp()
+        )
+
+    qfilter = vectors.build_filter(
+        item_type=type_filter, status="open", created_after_ts=created_after
+    )
+    hits = vectors.search_text(text_vector, qfilter, top_k)
+    stage1_ms = (time.perf_counter() - stage1_start) * 1000
+
+    item_ids = [UUID(str(hit.id)) for hit in hits]
+    items_by_id = db.list_items_by_ids(item_ids)
+    candidates: list[Candidate] = []
+    for rank, hit in enumerate(hits, start=1):
+        score = float(hit.score)
+        if score < SEARCH_TEXT_THRESHOLD:
+            continue
+        item_id = UUID(str(hit.id))
+        item = items_by_id.get(item_id)
+        if item is None:
+            continue
+        candidates.append(
+            Candidate(
+                item_id=item_id,
+                combined_score=score,
+                image_score=0.0,
+                text_score=score,
+                item=item,
+                stage1_rank=rank,
+            )
+        )
+
+    stage2_start = time.perf_counter()
+    reranked = stage2_rerank(_virtual_query_item(parsed), candidates, top_k=final_k)
+    stage2_ms = (time.perf_counter() - stage2_start) * 1000
+
+    return RetrievalResult(
+        candidates=reranked,
+        stage1_count=len(candidates),
+        stage1_ms=stage1_ms,
+        stage2_ms=stage2_ms,
+        total_ms=(time.perf_counter() - overall_start) * 1000,
+        cache_hit=False,
     )

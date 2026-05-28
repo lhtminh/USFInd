@@ -202,3 +202,46 @@ class TestRerankCache:
         stats = cache.cache_stats()
         assert stats["rerank_hits"] >= 1
         assert stats["rerank_misses"] >= 1
+
+
+class TestConversationalSearch:
+    def test_text_recall_then_rerank(self, monkeypatch):
+        user = db.upsert_user("conv@usf.edu", "Con")
+        a = _seed_item(user.id, "lost", 0, 0, "A")  # text vec e0 -> score 1.0
+        _seed_item(user.id, "lost", 0, 1, "B")  # text vec e1 -> score 0 (below threshold)
+        _seed_item(user.id, "found", 0, 0, "C")  # opposite-type filter excludes it
+
+        # search_type "found" means the user found something -> look at lost items.
+        parsed = retrieval.ParsedSearch(semantic_query="anything", search_type="found")
+        monkeypatch.setattr(retrieval.embeddings, "embed_text", lambda _: _basis(0))
+        monkeypatch.setattr(
+            retrieval.llm,
+            "cached_call_pro",
+            lambda *args, **kwargs: {
+                "rankings": [{"candidate_index": 1, "rerank_score": 70, "explanation": "a"}]
+            },
+        )
+
+        result = retrieval.conversational_search(parsed)
+        assert [c.item_id for c in result.candidates] == [a.id]
+        assert result.candidates[0].rerank_score == 70
+        assert result.stage1_count == 1  # only A survived the text threshold
+
+    def test_parse_search_query_returns_parsed(self, monkeypatch):
+        monkeypatch.setattr(
+            retrieval.llm,
+            "cached_call_flash",
+            lambda *args, **kwargs: {
+                "semantic_query": "blue water bottle",
+                "search_type": "lost",
+                "item_type": "water bottle",
+                "color": "blue",
+                "location": "library",
+                "time_window_hours": 24,
+            },
+        )
+        parsed = retrieval.parse_search_query("I lost a blue bottle at the library")
+        assert parsed.semantic_query == "blue water bottle"
+        assert parsed.search_type == "lost"
+        assert parsed.color == "blue"
+        assert parsed.time_window_hours == 24
