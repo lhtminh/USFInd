@@ -1,9 +1,19 @@
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
-import { mockStats } from "@/lib/mock-data";
+import { api, type ApiStats } from "@/lib/api";
 
-export default function StatsPage() {
-  const s = mockStats;
+export const dynamic = "force-dynamic";
+
+const ZERO = { p50: 0, p95: 0, p99: 0 };
+
+export default async function StatsPage() {
+  let s: ApiStats | null = null;
+  let error: string | null = null;
+  try {
+    s = await api.getStats();
+  } catch (err) {
+    error = err instanceof Error ? err.message : "Stats API unavailable";
+  }
 
   return (
     <div className="flex flex-1 flex-col">
@@ -18,134 +28,184 @@ export default function StatsPage() {
           </h1>
           <p className="mt-2 max-w-xl text-ink-soft">
             Latency percentiles, cache hit rates, Gemini cost, and Qdrant
-            vitals — refreshed live from <code className="font-mono">llm_usage</code>{" "}
-            and an in-process rolling window.
+            vitals — refreshed live from{" "}
+            <code className="font-mono">llm_usage</code> and an in-process
+            rolling window.
           </p>
         </header>
 
-        {/* Scale */}
-        <Section label="§ I — Scale" title="The size of the archive.">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Tile k="users" v={s.users.toString()} sub="active accounts" />
-            <Tile
-              k="open items"
-              v={s.openItems.toString()}
-              sub={`${s.lost} lost · ${s.found} found`}
-            />
-            <Tile k="confirmed matches" v={s.matches.toString()} sub="all time" />
-            <Tile
-              k="match success rate"
-              v={`${Math.round(s.matchSuccessRate * 100)}%`}
-              sub="lost → matched"
-              accent
-            />
+        {error ? (
+          <div className="usfind-card flex flex-col items-center gap-3 p-10 text-center">
+            <span className="font-display text-3xl italic">
+              The bureau is offline.
+            </span>
+            <span className="font-mono text-[0.72rem] uppercase tracking-wider text-ink-soft">
+              {error}
+            </span>
           </div>
-        </Section>
+        ) : null}
 
-        {/* Latency */}
-        <Section
-          label="§ II — Latency"
-          title="Pipeline percentiles (last 100 retrievals)."
-        >
-          <div className="overflow-hidden border border-line">
-            <table className="w-full font-mono text-sm">
-              <thead className="bg-paper-soft text-left uppercase tracking-wider text-[0.72rem] text-ink-soft">
-                <tr>
-                  <th className="px-4 py-3">Stage</th>
-                  <th className="px-4 py-3 text-right">p50 (ms)</th>
-                  <th className="px-4 py-3 text-right">p95 (ms)</th>
-                  <th className="px-4 py-3 text-right">p99 (ms)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <Row
-                  name="Stage 1 · Qdrant recall"
-                  p={s.latency.stage1}
-                  highlight
+        {s ? (
+          <>
+            <Section label="§ I — Scale" title="The size of the archive.">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <Tile k="users" v={String(s.users)} sub="registered" />
+                <Tile
+                  k="open items"
+                  v={String(s.open_total)}
+                  sub={`${s.lost_total} lost · ${s.found_total} found`}
                 />
-                <Row name="Stage 2 · Gemini rerank" p={s.latency.stage2} />
-                <Row name="End-to-end" p={s.latency.total} />
-              </tbody>
-            </table>
-          </div>
-          <p className="font-mono text-[0.72rem] uppercase tracking-wider text-ink-soft">
-            Target: Stage 1 p95 &lt; 100 ms · E2E p95 &lt; 4 s warm
-          </p>
-        </Section>
-
-        {/* Cache */}
-        <Section label="§ III — Cache" title="Three layers, all hot.">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <CacheTile name="Image embeddings" rate={s.cacheRates.imageEmb} />
-            <CacheTile name="Text embeddings" rate={s.cacheRates.textEmb} />
-            <CacheTile name="LLM responses" rate={s.cacheRates.llm} />
-            <CacheTile name="Rerank (24h)" rate={s.cacheRates.rerank} accent />
-          </div>
-        </Section>
-
-        {/* Cost */}
-        <Section label="§ IV — Cost" title="Gemini spend, watched.">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Tile k="today" v={`$${s.cost.today.toFixed(2)}`} sub="rolling 24h" />
-            <Tile
-              k="last 30 days"
-              v={`$${s.cost.last30.toFixed(2)}`}
-              sub="rolling 30d"
-            />
-            <Tile
-              k="avg / retrieval"
-              v={`$${s.cost.perRetrieval.toFixed(4)}`}
-              sub="warm cache"
-              accent
-            />
-          </div>
-          <div className="usfind-card p-5">
-            <div className="usfind-label text-ink-soft mb-3">
-              By endpoint · last 7 days
-            </div>
-            <ul className="flex flex-col gap-2 font-mono text-sm">
-              {Object.entries(s.cost.byEndpoint).map(([endpoint, cost]) => (
-                <li
-                  key={endpoint}
-                  className="flex items-baseline justify-between border-b border-line/70 pb-2 last:border-none last:pb-0"
-                >
-                  <span className="text-ink-soft uppercase tracking-wider text-xs">
-                    {endpoint}
-                  </span>
-                  <span className="text-ink">${cost.toFixed(2)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </Section>
-
-        {/* Qdrant */}
-        <Section label="§ V — Vector store" title="Qdrant vitals.">
-          <div className="grid gap-4 sm:grid-cols-2">
-            {Object.entries(s.qdrant).map(([name, info]) => (
-              <div key={name} className="usfind-card p-5">
-                <div className="usfind-label text-ink-soft mb-2">
-                  Collection · {name}
-                </div>
-                <div className="flex items-baseline justify-between">
-                  <span className="font-display text-3xl">{info.points}</span>
-                  <span className="font-mono text-[0.72rem] uppercase tracking-wider text-[var(--accent-strong)]">
-                    ● {info.status}
-                  </span>
-                </div>
-                <p className="mt-1 font-mono text-[0.72rem] uppercase tracking-wider text-ink-soft">
-                  HNSW · m=16 · ef_construct=128 · cosine
-                </p>
+                <Tile
+                  k="confirmed matches"
+                  v={String(s.matches)}
+                  sub="all time"
+                />
+                <Tile
+                  k="match success rate"
+                  v={`${Math.round((s.match_success_rate || 0) * 100)}%`}
+                  sub="lost → matched"
+                  accent
+                />
               </div>
-            ))}
-          </div>
-        </Section>
+            </Section>
 
-        {/* Architecture */}
-        <Section label="§ VI — Architecture" title="What talks to what.">
-          <div className="usfind-card p-6">
-            <pre className="overflow-x-auto whitespace-pre font-mono text-[0.78rem] leading-relaxed text-ink sm:text-sm">
-              {`Streamlit (legacy ops)   ┐
+            <Section
+              label="§ II — Latency"
+              title="Pipeline percentiles (last 100 retrievals)."
+            >
+              <div className="overflow-hidden border border-line">
+                <table className="w-full font-mono text-sm">
+                  <thead className="bg-paper-soft text-left uppercase tracking-wider text-[0.72rem] text-ink-soft">
+                    <tr>
+                      <th className="px-4 py-3">Stage</th>
+                      <th className="px-4 py-3 text-right">p50 (ms)</th>
+                      <th className="px-4 py-3 text-right">p95 (ms)</th>
+                      <th className="px-4 py-3 text-right">p99 (ms)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <Row
+                      name="Stage 1 · Qdrant recall"
+                      p={{ ...ZERO, ...s.latency.stage1 }}
+                      highlight
+                    />
+                    <Row
+                      name="Stage 2 · Gemini rerank"
+                      p={{ ...ZERO, ...s.latency.stage2 }}
+                    />
+                    <Row
+                      name="End-to-end"
+                      p={{ ...ZERO, ...s.latency.total }}
+                    />
+                  </tbody>
+                </table>
+              </div>
+              <p className="font-mono text-[0.72rem] uppercase tracking-wider text-ink-soft">
+                {s.latency_samples} samples in the rolling window · Targets:
+                Stage 1 p95 &lt; 100 ms · E2E p95 &lt; 4 s warm
+              </p>
+            </Section>
+
+            <Section label="§ III — Cache" title="Three layers, all hot.">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <CacheTile
+                  name="Image embeddings"
+                  hits={s.cache.image_hits ?? 0}
+                  misses={s.cache.image_misses ?? 0}
+                />
+                <CacheTile
+                  name="Text embeddings"
+                  hits={s.cache.text_hits ?? 0}
+                  misses={s.cache.text_misses ?? 0}
+                />
+                <CacheTile
+                  name="LLM responses"
+                  hits={s.cache.llm_hits ?? 0}
+                  misses={s.cache.llm_misses ?? 0}
+                />
+                <CacheTile
+                  name="Rerank (24h)"
+                  hits={s.cache.rerank_hits ?? 0}
+                  misses={s.cache.rerank_misses ?? 0}
+                  accent
+                />
+              </div>
+            </Section>
+
+            <Section label="§ IV — Cost" title="Gemini spend, watched.">
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Tile
+                  k="today"
+                  v={`$${(s.cost.today ?? 0).toFixed(4)}`}
+                  sub="rolling 24h"
+                />
+                <Tile
+                  k="last 30 days"
+                  v={`$${(s.cost.last30 ?? 0).toFixed(4)}`}
+                  sub="rolling 30d"
+                />
+                <Tile
+                  k="endpoints (7d)"
+                  v={String(Object.keys(s.cost.by_endpoint ?? {}).length)}
+                  sub="touched"
+                  accent
+                />
+              </div>
+              {Object.keys(s.cost.by_endpoint ?? {}).length > 0 ? (
+                <div className="usfind-card p-5">
+                  <div className="usfind-label text-ink-soft mb-3">
+                    By endpoint · last 7 days
+                  </div>
+                  <ul className="flex flex-col gap-2 font-mono text-sm">
+                    {Object.entries(s.cost.by_endpoint).map(([endpoint, cost]) => (
+                      <li
+                        key={endpoint}
+                        className="flex items-baseline justify-between border-b border-line/70 pb-2 last:border-none last:pb-0"
+                      >
+                        <span className="text-ink-soft uppercase tracking-wider text-xs">
+                          {endpoint}
+                        </span>
+                        <span className="text-ink">${cost.toFixed(4)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </Section>
+
+            <Section label="§ V — Vector store" title="Qdrant vitals.">
+              {Object.keys(s.qdrant ?? {}).length === 0 ? (
+                <p className="font-mono text-[0.72rem] uppercase tracking-wider text-ink-soft">
+                  Qdrant offline or no collections yet.
+                </p>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {Object.entries(s.qdrant).map(([name, info]) => (
+                    <div key={name} className="usfind-card p-5">
+                      <div className="usfind-label text-ink-soft mb-2">
+                        Collection · {name}
+                      </div>
+                      <div className="flex items-baseline justify-between">
+                        <span className="font-display text-3xl">
+                          {info.points_count ?? 0}
+                        </span>
+                        <span className="font-mono text-[0.72rem] uppercase tracking-wider text-[var(--accent-strong)]">
+                          ● {info.status ?? "—"}
+                        </span>
+                      </div>
+                      <p className="mt-1 font-mono text-[0.72rem] uppercase tracking-wider text-ink-soft">
+                        HNSW · m=16 · ef_construct=128 · cosine
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
+
+            <Section label="§ VI — Architecture" title="What talks to what.">
+              <div className="usfind-card p-6">
+                <pre className="overflow-x-auto whitespace-pre font-mono text-[0.78rem] leading-relaxed text-ink sm:text-sm">
+                  {`Streamlit (legacy ops)   ┐
 Next.js 16 (app)         │
                          ▼
                     FastAPI bridge ──► Postgres / Neon  (psycopg 3, raw SQL)
@@ -154,9 +214,11 @@ Next.js 16 (app)         │
                          ├──► Redis    (3-layer cache + rerank cache)
                          ├──► Gemini   (Flash for parse + describe; Pro for rerank)
                          └──► R2       (image storage, signed upload URLs)`}
-            </pre>
-          </div>
-        </Section>
+                </pre>
+              </div>
+            </Section>
+          </>
+        ) : null}
       </main>
       <SiteFooter />
     </div>
@@ -176,9 +238,7 @@ function Section({
     <section className="flex flex-col gap-5">
       <header>
         <div className="usfind-label text-ink-soft mb-1">{label}</div>
-        <h2 className="font-display text-3xl tracking-tight">
-          {title.replace("running", "running")}
-        </h2>
+        <h2 className="font-display text-3xl tracking-tight">{title}</h2>
       </header>
       {children}
     </section>
@@ -217,14 +277,17 @@ function Tile({
 
 function CacheTile({
   name,
-  rate,
+  hits,
+  misses,
   accent,
 }: {
   name: string;
-  rate: number;
+  hits: number;
+  misses: number;
   accent?: boolean;
 }) {
-  const pct = Math.round(rate * 100);
+  const total = hits + misses;
+  const pct = total === 0 ? 0 : Math.round((hits / total) * 100);
   return (
     <div className="usfind-card flex flex-col gap-3 p-5">
       <div className="usfind-label text-ink-soft">{name}</div>
@@ -235,7 +298,7 @@ function CacheTile({
             : "font-display text-4xl"
         }
       >
-        {pct}%
+        {total === 0 ? "—" : `${pct}%`}
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-paper-soft">
         <div
@@ -248,7 +311,7 @@ function CacheTile({
         />
       </div>
       <div className="font-mono text-[0.72rem] uppercase tracking-wider text-ink-soft">
-        hit rate
+        {hits} / {total} hit rate
       </div>
     </div>
   );
@@ -272,9 +335,9 @@ function Row({
       }
     >
       <td className="px-4 py-3 text-ink">{name}</td>
-      <td className="px-4 py-3 text-right text-ink">{p.p50}</td>
-      <td className="px-4 py-3 text-right text-ink">{p.p95}</td>
-      <td className="px-4 py-3 text-right text-ink">{p.p99}</td>
+      <td className="px-4 py-3 text-right text-ink">{p.p50.toFixed(0)}</td>
+      <td className="px-4 py-3 text-right text-ink">{p.p95.toFixed(0)}</td>
+      <td className="px-4 py-3 text-right text-ink">{p.p99.toFixed(0)}</td>
     </tr>
   );
 }

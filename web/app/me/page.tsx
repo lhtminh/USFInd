@@ -5,7 +5,7 @@ import { ItemCard, StatusBadge } from "@/components/item-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { currentUser, myItems, confirmedMatches } from "@/lib/mock-data";
-import { relativeTime } from "@/lib/format";
+import { relativeTimeFromIso } from "@/lib/api";
 
 export default function MePage() {
   return (
@@ -93,7 +93,7 @@ export default function MePage() {
                   <div className="flex items-center gap-3">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={match.query.imageUrl}
+                      src={match.query.image_url}
                       alt={match.query.title}
                       className="h-20 w-20 rounded-sm object-cover"
                     />
@@ -112,7 +112,7 @@ export default function MePage() {
                   <div className="flex items-center gap-3">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={match.matched.imageUrl}
+                      src={match.matched.image_url}
                       alt={match.matched.title}
                       className="h-20 w-20 rounded-sm object-cover"
                     />
@@ -128,13 +128,14 @@ export default function MePage() {
                   <div className="flex flex-col items-end gap-2">
                     <StatusBadge status="matched" />
                     <span className="font-mono text-[0.72rem] uppercase tracking-wider text-ink-soft">
-                      Score {match.rerankScore} · {relativeTime(match.confirmedAt)}
+                      Score {match.rerank_score} ·{" "}
+                      {relativeTimeFromIso(match.confirmed_at)}
                     </span>
                     <Link
-                      href={`mailto:${match.matched.poster.toLowerCase()}@usf.edu`}
+                      href={`mailto:${(match.matched.poster_name ?? "owner").toLowerCase()}@usf.edu`}
                       className="font-mono text-[0.72rem] uppercase tracking-wider text-[var(--accent-strong)] hover:underline"
                     >
-                      Email {match.matched.poster}
+                      Email {match.matched.poster_name ?? "the poster"}
                     </Link>
                   </div>
                 </article>

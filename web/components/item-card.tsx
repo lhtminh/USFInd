@@ -1,11 +1,21 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { relativeTime } from "@/lib/format";
-import type { Item } from "@/lib/mock-data";
+import { relativeTimeFromIso } from "@/lib/api";
+
+export type ItemCardItem = {
+  id: string;
+  type: "lost" | "found";
+  status: "open" | "matched" | "closed";
+  title: string;
+  location: string | null;
+  image_url: string;
+  poster_name: string | null;
+  posted_at: string; // ISO
+};
 
 type Props = {
-  item: Item;
+  item: ItemCardItem;
   index?: number;
   className?: string;
   hrefBase?: string;
@@ -36,7 +46,7 @@ export function ItemCard({
       <div className="aspect-[4/3] overflow-hidden border-b border-line bg-paper-soft">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={item.imageUrl}
+          src={item.image_url}
           alt={item.title}
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.015]"
         />
@@ -53,11 +63,11 @@ export function ItemCard({
             </span>
           ) : null}
         </div>
-        <h3 className="font-display text-xl leading-snug">
-          {item.title}
-        </h3>
+        <h3 className="font-display text-xl leading-snug">{item.title}</h3>
         <p className="font-mono text-[0.72rem] uppercase tracking-wider text-ink-soft">
-          {item.location} · {item.poster} · {relativeTime(item.postedAt)}
+          {item.location ?? "—"}
+          {item.poster_name ? ` · ${item.poster_name}` : ""} ·{" "}
+          {relativeTimeFromIso(item.posted_at)}
         </p>
       </div>
     </Link>
