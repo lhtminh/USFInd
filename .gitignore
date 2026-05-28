@@ -30,6 +30,16 @@ htmlcov/
 *.db
 lostandfound.db
 
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Installed agent skills (managed by `npx skills`)
+.agents/
+
 # OS / editor
 .DS_Store
 .vscode/
