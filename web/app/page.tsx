@@ -8,6 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { SiteHeader } from "@/components/site-header";
+import { SiteFooter } from "@/components/site-footer";
 import { cn } from "@/lib/utils";
 
 const TECH = [
@@ -48,59 +50,7 @@ const FEATURES = [
 export default function HomePage() {
   return (
     <div className="flex flex-1 flex-col">
-      {/* Newspaper-style masthead */}
-      <header className="border-b border-line">
-        <div className="mx-auto flex w-full max-w-6xl items-end justify-between gap-6 px-6 py-5">
-          <Link
-            href="/"
-            className="flex items-baseline gap-3 leading-none"
-          >
-            <span className="font-display text-3xl italic tracking-tight">
-              USFind
-            </span>
-            <span className="usfind-label text-ink-soft hidden sm:inline">
-              Dept. of Lost &amp; Found · USF · vol. 01
-            </span>
-          </Link>
-          <nav className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              render={<Link href="/browse" />}
-              nativeButton={false}
-              className="font-mono uppercase tracking-wider"
-            >
-              Browse
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              render={<Link href="/search" />}
-              nativeButton={false}
-              className="font-mono uppercase tracking-wider"
-            >
-              Search
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              render={<Link href="/stats" />}
-              nativeButton={false}
-              className="font-mono uppercase tracking-wider"
-            >
-              Stats
-            </Button>
-            <Button
-              size="sm"
-              render={<Link href="/post" />}
-              nativeButton={false}
-              className="font-mono uppercase tracking-wider"
-            >
-              File a report →
-            </Button>
-          </nav>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-24 px-6 py-20">
         {/* Hero */}
@@ -262,21 +212,7 @@ export default function HomePage() {
         </section>
       </main>
 
-      {/* Colophon footer */}
-      <footer className="border-t border-line">
-        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-8 font-mono text-xs uppercase tracking-wider text-ink-soft">
-          <span>
-            USFind / Dept. of Lost &amp; Found / Tampa, FL ·{" "}
-            <span className="text-ink">Set in Newsreader &amp; JetBrains Mono</span>
-          </span>
-          <Link
-            href="https://github.com/lhtminh/USFInd"
-            className="hover:text-[var(--accent-strong)]"
-          >
-            → source on github
-          </Link>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
