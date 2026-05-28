@@ -196,6 +196,31 @@ def run_migrations() -> list[str]:
 
 
 @_retry_on_connection_error()
+def get_system_stats() -> dict:
+    """Aggregate counts powering the public stats page."""
+    with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT
+              (SELECT COUNT(*) FROM users)::int AS users,
+              (SELECT COUNT(*) FROM matches)::int AS matches,
+              (SELECT COUNT(*) FROM items WHERE type='lost')::int AS lost_total,
+              (SELECT COUNT(*) FROM items WHERE type='lost' AND status='matched')::int
+                AS lost_matched,
+              (SELECT COUNT(*) FROM items WHERE type='found')::int AS found_total,
+              (SELECT COUNT(*) FROM items WHERE status='open')::int AS open_total,
+              (SELECT COUNT(*) FROM items WHERE status='matched')::int AS matched_total
+            """
+        )
+        row = cur.fetchone() or {}
+        lost_total = row.get("lost_total", 0) or 0
+        row["match_success_rate"] = (
+            (row.get("lost_matched", 0) or 0) / lost_total if lost_total else 0.0
+        )
+        return dict(row)
+
+
+@_retry_on_connection_error()
 def get_user(user_id: UUID) -> User | None:
     """Fetch a user row by id, or None if absent."""
     with get_conn() as conn, conn.cursor(row_factory=dict_row) as cur:

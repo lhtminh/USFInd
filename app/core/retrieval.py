@@ -20,7 +20,7 @@ from uuid import UUID, uuid4
 from PIL import Image
 from pydantic import BaseModel
 
-from app.core import cache, db, embeddings, llm, storage, vectors
+from app.core import cache, db, embeddings, llm, metrics, storage, vectors
 from app.core.db import Item
 
 logger = logging.getLogger(__name__)
@@ -281,12 +281,14 @@ def full_retrieval(query_item_id: UUID, final_k: int = 10) -> RetrievalResult:
         cache_hit = False
     stage2_ms = (time.perf_counter() - stage2_start) * 1000
 
+    total_ms = (time.perf_counter() - overall_start) * 1000
+    metrics.record(stage1_ms, stage2_ms, total_ms, cache_hit)
     return RetrievalResult(
         candidates=reranked,
         stage1_count=len(candidates),
         stage1_ms=stage1_ms,
         stage2_ms=stage2_ms,
-        total_ms=(time.perf_counter() - overall_start) * 1000,
+        total_ms=total_ms,
         cache_hit=cache_hit,
     )
 

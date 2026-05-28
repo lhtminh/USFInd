@@ -109,3 +109,10 @@ def test_me_page_logged_in_renders():
     at.session_state["user"] = {"id": str(uuid4()), "email": "x@usf.edu", "name": "X"}
     at.run(timeout=60)
     assert not at.exception
+
+
+def test_stats_page_runs():
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(str(_PAGES / "9_Stats.py")).run(timeout=60)
+    assert not at.exception
