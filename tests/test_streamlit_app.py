@@ -77,3 +77,10 @@ def test_post_page_renders_form_when_logged_in():
     at.session_state["user"] = {"id": str(uuid4()), "email": "x@usf.edu", "name": "X"}
     at.run(timeout=60)
     assert not at.exception
+
+
+def test_matches_page_without_id_runs():
+    from streamlit.testing.v1 import AppTest
+
+    at = AppTest.from_file(str(_PAGES / "4_Matches.py")).run(timeout=60)
+    assert not at.exception
