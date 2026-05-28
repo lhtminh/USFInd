@@ -224,7 +224,10 @@ def stage2_rerank(
     system_instruction = _load_prompt("rerank.txt")
     parts = _build_rerank_parts(query_item, capped)
     response = llm.cached_call_pro(
-        parts, system_instruction=system_instruction, response_schema=_RERANK_SCHEMA
+        parts,
+        system_instruction=system_instruction,
+        response_schema=_RERANK_SCHEMA,
+        endpoint="rerank",
     )
 
     by_index = {r["candidate_index"]: r for r in response.get("rankings", [])}
@@ -295,6 +298,7 @@ def parse_search_query(query: str) -> ParsedSearch:
         parts=[query],
         system_instruction=system_instruction,
         response_schema=PARSE_SEARCH_SCHEMA,
+        endpoint="parse_search",
     )
     # The schema guarantees semantic_query + search_type; fall back defensively.
     response.setdefault("semantic_query", query)

@@ -31,7 +31,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 _RESET_SQL = """
-DROP TABLE IF EXISTS matches, items, users, schema_migrations CASCADE;
+DROP TABLE IF EXISTS matches, items, users, llm_usage, schema_migrations CASCADE;
 DROP FUNCTION IF EXISTS set_updated_at() CASCADE;
 """
 
@@ -58,7 +58,7 @@ def schema():
 @pytest.fixture(autouse=True)
 def environment(schema, tmp_path, monkeypatch):
     with db.get_conn() as conn:
-        conn.execute("TRUNCATE matches, items, users RESTART IDENTITY CASCADE")
+        conn.execute("TRUNCATE matches, items, users, llm_usage RESTART IDENTITY CASCADE")
         conn.commit()
     monkeypatch.setattr(vectors, "_client", QdrantClient(location=":memory:"))
     vectors.ensure_collections()

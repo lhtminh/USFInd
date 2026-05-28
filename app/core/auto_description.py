@@ -41,5 +41,6 @@ def auto_describe(image_bytes: bytes) -> str:
         parts=[image, "Describe this item for a lost-and-found post."],
         system_instruction=system_instruction,
         response_schema=_SCHEMA,
+        endpoint="auto_describe",
     )
     return str(response.get("description", "")).strip()

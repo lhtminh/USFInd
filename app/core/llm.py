@@ -18,7 +18,7 @@ import google.generativeai as genai
 from google.api_core import exceptions as gexc
 from PIL import Image
 
-from app.core import cache
+from app.core import cache, db
 from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -55,12 +55,45 @@ def estimate_cost(model_name: str, input_tokens: int, output_tokens: int) -> flo
     return (input_tokens / 1_000_000) * input_rate + (output_tokens / 1_000_000) * output_rate
 
 
+def _log_usage(
+    endpoint: str,
+    model_name: str,
+    input_tokens: int,
+    output_tokens: int,
+    latency_ms: int,
+    cache_hit: bool,
+) -> None:
+    """Record one row in llm_usage; never raises (telemetry must not break flow)."""
+    try:
+        with db.get_conn() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO llm_usage
+                  (model, input_tokens, output_tokens, cost_usd, latency_ms, cache_hit, endpoint)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    model_name,
+                    input_tokens,
+                    output_tokens,
+                    estimate_cost(model_name, input_tokens, output_tokens),
+                    latency_ms,
+                    cache_hit,
+                    endpoint,
+                ),
+            )
+            conn.commit()
+    except Exception as exc:
+        logger.warning("Failed to log llm_usage row (%s): %s", endpoint, exc)
+
+
 def _call(
     model_name: str,
     parts: list,
     system_instruction: str | None,
     response_schema: dict | None,
     max_output_tokens: int,
+    endpoint: str = "unknown",
 ) -> dict:
     """Invoke a Gemini model with retry, then parse and return the response."""
     generation_config: dict = {"max_output_tokens": max_output_tokens}
@@ -110,6 +143,7 @@ def _call(
             latency_ms,
             cost,
         )
+        _log_usage(endpoint, model_name, input_tokens, output_tokens, int(latency_ms), False)
         return _parse(response, response_schema, model_name)
 
     raise LLMError(
@@ -134,9 +168,12 @@ def call_flash(
     system_instruction: str | None = None,
     response_schema: dict | None = None,
     max_output_tokens: int = 1024,
+    endpoint: str = "unknown",
 ) -> dict:
     """Call gemini-2.0-flash for cheap text/vision tasks."""
-    return _call(FLASH_MODEL, parts, system_instruction, response_schema, max_output_tokens)
+    return _call(
+        FLASH_MODEL, parts, system_instruction, response_schema, max_output_tokens, endpoint
+    )
 
 
 def call_pro(
@@ -144,9 +181,10 @@ def call_pro(
     system_instruction: str | None = None,
     response_schema: dict | None = None,
     max_output_tokens: int = 2048,
+    endpoint: str = "unknown",
 ) -> dict:
     """Call gemini-2.5-pro for high-quality reasoning such as re-ranking."""
-    return _call(PRO_MODEL, parts, system_instruction, response_schema, max_output_tokens)
+    return _call(PRO_MODEL, parts, system_instruction, response_schema, max_output_tokens, endpoint)
 
 
 def _serialize_parts(parts: list) -> list[dict]:
@@ -184,6 +222,7 @@ def cached_call_flash(
     system_instruction: str | None = None,
     response_schema: dict | None = None,
     max_output_tokens: int = 1024,
+    endpoint: str = "unknown",
 ) -> dict:
     """Cached gemini-2.0-flash call keyed on a content hash of the prompt."""
     payload = _cache_payload(
@@ -191,8 +230,11 @@ def cached_call_flash(
     )
     cached = cache.get_cached_llm(payload)
     if cached is not None:
+        _log_usage(endpoint, FLASH_MODEL, 0, 0, 0, True)
         return cached
-    result = call_flash(parts, system_instruction, response_schema, max_output_tokens)
+    result = call_flash(
+        parts, system_instruction, response_schema, max_output_tokens, endpoint=endpoint
+    )
     cache.set_cached_llm(payload, result)
     return result
 
@@ -202,6 +244,7 @@ def cached_call_pro(
     system_instruction: str | None = None,
     response_schema: dict | None = None,
     max_output_tokens: int = 2048,
+    endpoint: str = "unknown",
 ) -> dict:
     """Cached gemini-2.5-pro call keyed on a content hash of the prompt."""
     payload = _cache_payload(
@@ -209,7 +252,10 @@ def cached_call_pro(
     )
     cached = cache.get_cached_llm(payload)
     if cached is not None:
+        _log_usage(endpoint, PRO_MODEL, 0, 0, 0, True)
         return cached
-    result = call_pro(parts, system_instruction, response_schema, max_output_tokens)
+    result = call_pro(
+        parts, system_instruction, response_schema, max_output_tokens, endpoint=endpoint
+    )
     cache.set_cached_llm(payload, result)
     return result
