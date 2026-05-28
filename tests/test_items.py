@@ -84,6 +84,20 @@ class TestItemsPipeline:
         image_vec, text_vec = vectors.get_embeddings(item.id)
         assert image_vec is not None and text_vec is not None
 
+    def test_create_item_stores_ai_description(self, tmp_path):
+        user = db.upsert_user("ai@usf.edu", "Ada")
+        item = items.create_item(
+            user_id=user.id,
+            type="found",
+            title="Red umbrella",
+            description="user typed",
+            location=None,
+            uploaded_file=_jpeg_bytes(),
+            ai_description="Red compact umbrella, broken rib",
+        )
+        assert item.ai_description == "Red compact umbrella, broken rib"
+        assert item.description == "user typed"
+
     def test_create_item_marks_failed_on_index_error(self, monkeypatch):
         user = db.upsert_user("fail@usf.edu", "Fay")
 

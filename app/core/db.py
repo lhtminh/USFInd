@@ -222,14 +222,33 @@ def insert_item(
     image_key: str,
     location: str | None,
     item_id: UUID | None = None,
+    ai_description: str | None = None,
 ) -> Item:
     """Insert a new item (status 'open', embedding_status 'pending'). Returns the row.
 
     An explicit ``item_id`` may be supplied so callers can derive the storage key
     from the same id before the row exists; otherwise the database assigns one.
     """
-    columns = ["user_id", "type", "title", "description", "image_url", "image_key", "location"]
-    values: list[Any] = [user_id, type, title, description, image_url, image_key, location]
+    columns = [
+        "user_id",
+        "type",
+        "title",
+        "description",
+        "ai_description",
+        "image_url",
+        "image_key",
+        "location",
+    ]
+    values: list[Any] = [
+        user_id,
+        type,
+        title,
+        description,
+        ai_description,
+        image_url,
+        image_key,
+        location,
+    ]
     if item_id is not None:
         columns.insert(0, "id")
         values.insert(0, item_id)

@@ -47,6 +47,7 @@ def create_item(
     description: str | None,
     location: str | None,
     uploaded_file: object,
+    ai_description: str | None = None,
 ) -> Item:
     """Create an item end-to-end and return it once embeddings are indexed.
 
@@ -68,6 +69,7 @@ def create_item(
         image_key=key,
         location=location,
         item_id=item_id,
+        ai_description=ai_description,
     )
 
     try:

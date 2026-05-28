@@ -1,4 +1,4 @@
-"""Post Item page: upload a photo and create a lost/found item."""
+"""Post Item page: upload a photo (with AI auto-description) and create an item."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import streamlit as st  # noqa: E402
 
 from app.core import items  # noqa: E402
+from app.core.auto_description import auto_describe  # noqa: E402
 from app.core.storage import StorageError  # noqa: E402
 from app.ui_common import init_app, render_sidebar, require_login  # noqa: E402
 
@@ -21,14 +22,36 @@ user = require_login()
 
 st.header("Report a Lost or Found Item 📤")
 
-with st.form("post_item", clear_on_submit=False):
+# The uploader lives outside the form so a new file triggers a rerun and we can
+# auto-describe it and pre-fill the description before submission.
+uploaded = st.file_uploader("Upload a photo", type=["jpg", "jpeg", "png", "webp"], key="post_image")
+
+if uploaded is not None:
+    st.image(uploaded, width=300)
+    signature = (uploaded.name, uploaded.size)
+    if st.session_state.get("_ai_sig") != signature:
+        st.session_state["_ai_sig"] = signature
+        try:
+            with st.spinner("✨ Generating an AI description…"):
+                st.session_state["ai_description"] = auto_describe(uploaded.getvalue())
+        except Exception:
+            st.session_state["ai_description"] = ""
+        # Pre-fill only when the user hasn't typed their own description yet.
+        if st.session_state.get("ai_description") and not st.session_state.get("desc_field"):
+            st.session_state["desc_field"] = st.session_state["ai_description"]
+
+ai_suggestion = st.session_state.get("ai_description", "")
+if ai_suggestion:
+    st.caption("✨ AI suggestion — feel free to edit")
+    if st.button("Apply AI suggestion"):
+        st.session_state["desc_field"] = ai_suggestion
+        st.rerun()
+
+with st.form("post_item"):
     kind = st.radio("I…", ["Lost something", "Found something"], horizontal=True)
-    uploaded = st.file_uploader("Upload a photo", type=["jpg", "jpeg", "png", "webp"])
-    if uploaded is not None:
-        st.image(uploaded, width=300)
-    title = st.text_input("Title", max_chars=200)
-    description = st.text_area("Description (optional)", max_chars=2000)
-    location = st.text_input("Location (optional)", max_chars=200)
+    title = st.text_input("Title", max_chars=200, key="title_field")
+    description = st.text_area("Description (optional)", max_chars=2000, key="desc_field")
+    location = st.text_input("Location (optional)", max_chars=200, key="loc_field")
     submitted = st.form_submit_button("Post item")
 
 if submitted:
@@ -49,6 +72,7 @@ if submitted:
                     description=description.strip() or None,
                     location=location.strip() or None,
                     uploaded_file=uploaded.getvalue(),
+                    ai_description=ai_suggestion or None,
                 )
                 st.write("Indexing in vector database…")
                 status.update(label="Done!", state="complete")
