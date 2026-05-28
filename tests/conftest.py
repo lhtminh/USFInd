@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 os.environ.setdefault("DATABASE_URL", "postgresql://test:test@localhost:5432/usfind_test")
-os.environ.setdefault("GEMINI_API_KEY", "test-gemini-key")
+os.environ.setdefault("OPENROUTER_API_KEY", "test-openrouter-key")
 os.environ.setdefault("R2_ENDPOINT", "https://test.r2.example")
 os.environ.setdefault("R2_ACCESS_KEY_ID", "test-access-key")
 os.environ.setdefault("R2_SECRET_ACCESS_KEY", "test-secret-key")

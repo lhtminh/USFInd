@@ -29,8 +29,11 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Google Gemini
-    gemini_api_key: str = Field(min_length=1)
+    # OpenRouter (OpenAI-compatible gateway to many models)
+    openrouter_api_key: str = Field(min_length=1)
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_flash_model: str = "google/gemini-2.0-flash-exp:free"
+    openrouter_pro_model: str = "qwen/qwen2.5-vl-72b-instruct:free"
 
     # Postgres (Neon)
     database_url: str = Field(min_length=1)

@@ -51,26 +51,29 @@ def clean(schema):
 
 class _Usage:
     def __init__(self, prompt: int, output: int) -> None:
-        self.prompt_token_count = prompt
-        self.candidates_token_count = output
+        self.prompt_tokens = prompt
+        self.completion_tokens = output
+
+
+class _Message:
+    def __init__(self, content: str) -> None:
+        self.content = content
+
+
+class _Choice:
+    def __init__(self, content: str) -> None:
+        self.message = _Message(content)
 
 
 class _Resp:
-    def __init__(self, text: str, prompt: int = 100, output: int = 50) -> None:
-        self.text = text
-        self.usage_metadata = _Usage(prompt, output)
+    def __init__(self, content: str, prompt: int = 100, output: int = 50) -> None:
+        self.choices = [_Choice(content)]
+        self.usage = _Usage(prompt, output)
 
 
 class TestLlmUsageLogging:
     def test_call_flash_writes_a_usage_row(self, monkeypatch):
-        class FakeModel:
-            def __init__(self, *a, **k):
-                pass
-
-            def generate_content(self, *a, **k):
-                return _Resp("hello")
-
-        monkeypatch.setattr(llm.genai, "GenerativeModel", FakeModel)
+        monkeypatch.setattr(llm, "_chat_completion", lambda **_: _Resp("hello"))
         monkeypatch.setattr(llm.time, "sleep", lambda *_: None)
 
         llm.call_flash(["hi"], endpoint="auto_describe")
@@ -88,15 +91,7 @@ class TestLlmUsageLogging:
         from app.core import cache
 
         monkeypatch.setattr(cache, "_client", FakeRedis())
-
-        class FakeModel:
-            def __init__(self, *a, **k):
-                pass
-
-            def generate_content(self, *a, **k):
-                return _Resp("cached")
-
-        monkeypatch.setattr(llm.genai, "GenerativeModel", FakeModel)
+        monkeypatch.setattr(llm, "_chat_completion", lambda **_: _Resp("cached"))
         monkeypatch.setattr(llm.time, "sleep", lambda *_: None)
 
         llm.cached_call_flash(["q"], endpoint="parse_search")  # miss -> 1 row
