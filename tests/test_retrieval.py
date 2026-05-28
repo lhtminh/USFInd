@@ -10,7 +10,7 @@ import psycopg
 import pytest
 from qdrant_client import QdrantClient
 
-from app.core import db, retrieval, vectors
+from app.core import cache, db, retrieval, vectors
 from app.core.config import get_settings
 
 
@@ -169,3 +169,36 @@ class TestStage2Rerank:
         assert result.candidates[0].rerank_score == 88
         assert result.cache_hit is False
         assert result.total_ms >= 0
+
+
+class TestRerankCache:
+    def test_second_full_retrieval_served_from_cache(self, monkeypatch):
+        from fakeredis import FakeRedis
+
+        monkeypatch.setattr(cache, "_client", FakeRedis())
+        user = db.upsert_user("rcache@usf.edu", "Rca")
+        query = _seed_item(user.id, "lost", 0, 1, "query")
+        a = _seed_item(user.id, "found", 0, 1, "A")
+
+        calls = {"n": 0}
+
+        def fake_pro(*args, **kwargs):
+            calls["n"] += 1
+            return {
+                "rankings": [{"candidate_index": 1, "rerank_score": 80, "explanation": "match"}]
+            }
+
+        monkeypatch.setattr(retrieval.llm, "cached_call_pro", fake_pro)
+
+        first = retrieval.full_retrieval(query.id)
+        second = retrieval.full_retrieval(query.id)
+
+        assert first.cache_hit is False
+        assert second.cache_hit is True
+        assert calls["n"] == 1  # Stage 2 ran once; second call hit the cache
+        assert [c.item_id for c in second.candidates] == [a.id]
+        assert second.candidates[0].rerank_score == 80
+
+        stats = cache.cache_stats()
+        assert stats["rerank_hits"] >= 1
+        assert stats["rerank_misses"] >= 1

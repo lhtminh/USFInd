@@ -7,6 +7,7 @@ precise re-scoring with explanations.
 
 from __future__ import annotations
 
+import hashlib
 import io
 import logging
 import time
@@ -18,7 +19,7 @@ from uuid import UUID
 from PIL import Image
 from pydantic import BaseModel
 
-from app.core import db, llm, storage, vectors
+from app.core import cache, db, llm, storage, vectors
 from app.core.db import Item
 
 logger = logging.getLogger(__name__)
@@ -216,8 +217,20 @@ def stage2_rerank(
     return reranked[:top_k]
 
 
+def _rerank_cache_key(query_item: Item, candidates: list[Candidate]) -> str:
+    """Content-aware key: invalidates when the query updates or the candidate set changes."""
+    sorted_ids = sorted(str(c.item_id) for c in candidates)
+    digest = hashlib.sha256("".join(sorted_ids).encode("utf-8")).hexdigest()
+    updated_ts = int(query_item.updated_at.timestamp())
+    return f"rerank:v1:{query_item.id}:{updated_ts}:{digest}"
+
+
 def full_retrieval(query_item_id: UUID, final_k: int = 10) -> RetrievalResult:
-    """Run both retrieval stages and return ranked matches with timings."""
+    """Run both retrieval stages and return ranked matches with timings.
+
+    Stage 2 is cached (24h) under a key derived from the query's updated_at and
+    the sorted candidate ids, so edits to the query naturally invalidate it.
+    """
     overall_start = time.perf_counter()
 
     stage1_start = time.perf_counter()
@@ -228,8 +241,16 @@ def full_retrieval(query_item_id: UUID, final_k: int = 10) -> RetrievalResult:
     if query_item is None:
         raise RetrievalError(f"Query item {query_item_id} not found")
 
+    cache_key = _rerank_cache_key(query_item, candidates)
     stage2_start = time.perf_counter()
-    reranked = stage2_rerank(query_item, candidates, top_k=final_k)
+    cached = cache.get_cached_rerank(cache_key)
+    if cached is not None:
+        reranked = [Candidate.model_validate(entry) for entry in cached]
+        cache_hit = True
+    else:
+        reranked = stage2_rerank(query_item, candidates, top_k=final_k)
+        cache.set_cached_rerank(cache_key, [c.model_dump(mode="json") for c in reranked])
+        cache_hit = False
     stage2_ms = (time.perf_counter() - stage2_start) * 1000
 
     return RetrievalResult(
@@ -238,5 +259,5 @@ def full_retrieval(query_item_id: UUID, final_k: int = 10) -> RetrievalResult:
         stage1_ms=stage1_ms,
         stage2_ms=stage2_ms,
         total_ms=(time.perf_counter() - overall_start) * 1000,
-        cache_hit=False,
+        cache_hit=cache_hit,
     )

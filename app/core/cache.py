@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 EMB_TTL = 30 * 24 * 3600  # 30 days
 LLM_TTL = 7 * 24 * 3600  # 7 days
+RERANK_TTL = 24 * 3600  # 24 hours
 
 _client: redis.Redis | None = None
 _client_lock = threading.Lock()
@@ -34,6 +35,8 @@ _stats: dict[str, int] = {
     "text_misses": 0,
     "llm_hits": 0,
     "llm_misses": 0,
+    "rerank_hits": 0,
+    "rerank_misses": 0,
 }
 _stats_lock = threading.Lock()
 
@@ -146,3 +149,24 @@ def get_cached_llm(prompt_payload: dict) -> dict | None:
 def set_cached_llm(prompt_payload: dict, response: dict) -> None:
     """Cache an LLM response keyed by a canonical hash of the prompt payload."""
     _set(_llm_key(prompt_payload), json.dumps(response).encode("utf-8"), LLM_TTL)
+
+
+def get_cached_rerank(key: str) -> list | None:
+    """Return a cached re-rank result list for a fully-qualified key, or None."""
+    raw = _get(key)
+    if raw is None:
+        _bump("rerank_misses")
+        return None
+    try:
+        result = json.loads(raw)
+    except Exception as exc:
+        logger.warning("Failed to decode cached rerank result: %s", exc)
+        _bump("rerank_misses")
+        return None
+    _bump("rerank_hits")
+    return result
+
+
+def set_cached_rerank(key: str, result: list) -> None:
+    """Cache a re-rank result list (24h TTL) under a content-aware key."""
+    _set(key, json.dumps(result).encode("utf-8"), RERANK_TTL)
