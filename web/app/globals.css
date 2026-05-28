@@ -64,7 +64,8 @@
   --paper-soft: oklch(0.91 0.03 75);
   --ink: oklch(0.20 0.01 55);
   --ink-soft: oklch(0.42 0.015 60);
-  --accent-strong: oklch(0.58 0.17 35);
+  /* USF-flavored sage / pastel green */
+  --accent-strong: oklch(0.55 0.13 148);
   --line: oklch(0.84 0.025 70);
 
   --background: var(--paper);
@@ -106,7 +107,8 @@
   --paper-soft: oklch(0.22 0.015 50);
   --ink: oklch(0.94 0.02 78);
   --ink-soft: oklch(0.68 0.025 70);
-  --accent-strong: oklch(0.70 0.16 35);
+  /* USF-flavored sage / pastel green — slightly lighter for dark surface */
+  --accent-strong: oklch(0.74 0.13 148);
   --line: oklch(0.30 0.015 55);
 
   --background: var(--paper);
