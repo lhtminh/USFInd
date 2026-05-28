@@ -6,7 +6,7 @@ else
 	PY := .venv/bin/python
 endif
 
-.PHONY: up down logs reset run test fmt
+.PHONY: up down logs reset run test fmt seed benchmark
 
 up:
 	$(COMPOSE) up -d
@@ -30,3 +30,9 @@ test:
 fmt:
 	$(PY) -m black .
 	$(PY) -m ruff check --fix .
+
+seed:
+	$(PY) -m scripts.seed_data
+
+benchmark:
+	$(PY) -m scripts.benchmark
