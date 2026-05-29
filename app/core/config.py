@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     r2_bucket: str = Field(default="usfind-images", min_length=1)
     r2_public_url: str = Field(min_length=1)
 
+    # Auth
+    session_secret: str = "usfind-dev-session-secret-DO-NOT-USE-IN-PRODUCTION-set-SESSION_SECRET"
+
     # Runtime
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     environment: Literal["local", "production"] = "local"

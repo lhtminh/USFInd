@@ -243,9 +243,11 @@ def list_user_matches(user_id: UUID) -> list[dict]:
               m.id, m.combined_score, m.rerank_score, m.created_at AS confirmed_at,
               m.confirmed_by_user_id,
               ia.id AS item_a_id, ia.title AS item_a_title,
-              ia.image_url AS item_a_image, ia.user_id AS item_a_user_id,
+              ia.image_url AS item_a_image, ia.image_key AS item_a_key,
+              ia.user_id AS item_a_user_id,
               ib.id AS item_b_id, ib.title AS item_b_title,
-              ib.image_url AS item_b_image, ib.user_id AS item_b_user_id
+              ib.image_url AS item_b_image, ib.image_key AS item_b_key,
+              ib.user_id AS item_b_user_id
             FROM matches m
             JOIN items ia ON ia.id = m.item_a_id
             JOIN items ib ON ib.id = m.item_b_id

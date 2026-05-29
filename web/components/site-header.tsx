@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import { MenuIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,6 +12,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { useAuth } from "@/components/auth-provider";
+import { SignInSheet } from "@/components/sign-in-sheet";
 
 const NAV = [
   { href: "/browse", label: "Browse" },
@@ -18,6 +23,9 @@ const NAV = [
 ];
 
 export function SiteHeader() {
+  const { user, signOut, loading } = useAuth();
+  const [signInOpen, setSignInOpen] = useState(false);
+
   return (
     <header className="border-b border-line">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6 sm:py-5">
@@ -44,26 +52,70 @@ export function SiteHeader() {
               {item.label}
             </Button>
           ))}
-          <Button
-            size="sm"
-            render={<Link href="/post" />}
-            nativeButton={false}
-            className="font-mono uppercase tracking-wider"
-          >
-            File a report →
-          </Button>
+          {loading ? null : user ? (
+            <>
+              <span className="usfind-label ml-2 hidden text-ink-soft lg:inline">
+                {user.name ?? user.email}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => signOut()}
+                className="font-mono uppercase tracking-wider"
+              >
+                Sign out
+              </Button>
+              <Button
+                size="sm"
+                render={<Link href="/post" />}
+                nativeButton={false}
+                className="font-mono uppercase tracking-wider"
+              >
+                File a report →
+              </Button>
+            </>
+          ) : (
+            <SignInSheet
+              open={signInOpen}
+              onOpenChange={setSignInOpen}
+              trigger={
+                <Button
+                  size="sm"
+                  className="font-mono uppercase tracking-wider"
+                >
+                  Sign in
+                </Button>
+              }
+            />
+          )}
         </nav>
 
-        {/* Mobile: primary CTA + hamburger */}
+        {/* Mobile: condensed actions + hamburger */}
         <div className="flex items-center gap-2 md:hidden">
-          <Button
-            size="sm"
-            render={<Link href="/post" />}
-            nativeButton={false}
-            className="font-mono uppercase tracking-wider"
-          >
-            File →
-          </Button>
+          {!loading && !user ? (
+            <SignInSheet
+              open={signInOpen}
+              onOpenChange={setSignInOpen}
+              trigger={
+                <Button
+                  size="sm"
+                  className="font-mono uppercase tracking-wider"
+                >
+                  Sign in
+                </Button>
+              }
+            />
+          ) : null}
+          {!loading && user ? (
+            <Button
+              size="sm"
+              render={<Link href="/post" />}
+              nativeButton={false}
+              className="font-mono uppercase tracking-wider"
+            >
+              File →
+            </Button>
+          ) : null}
           <Sheet>
             <SheetTrigger
               render={
@@ -96,17 +148,35 @@ export function SiteHeader() {
                     }
                   />
                 ))}
-                <div className="mt-3 border-t border-line pt-3">
-                  <SheetClose
-                    render={
-                      <Link
-                        href="/post"
-                        className="block rounded-md bg-primary px-3 py-3 text-center font-mono text-sm uppercase tracking-wider text-primary-foreground"
-                      >
-                        File a report →
-                      </Link>
-                    }
-                  />
+                <div className="mt-3 flex flex-col gap-2 border-t border-line pt-3">
+                  {user ? (
+                    <>
+                      <SheetClose
+                        render={
+                          <Link
+                            href="/post"
+                            className="block rounded-md bg-primary px-3 py-3 text-center font-mono text-sm uppercase tracking-wider text-primary-foreground"
+                          >
+                            File a report →
+                          </Link>
+                        }
+                      />
+                      <span className="px-3 font-mono text-[0.7rem] uppercase tracking-wider text-ink-soft">
+                        Signed in as {user.name ?? user.email}
+                      </span>
+                      <SheetClose
+                        render={
+                          <button
+                            type="button"
+                            onClick={() => signOut()}
+                            className="rounded-md border border-line px-3 py-3 font-mono text-sm uppercase tracking-wider text-ink hover:bg-paper-soft"
+                          >
+                            Sign out
+                          </button>
+                        }
+                      />
+                    </>
+                  ) : null}
                 </div>
               </nav>
             </SheetContent>

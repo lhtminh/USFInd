@@ -5,21 +5,51 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { TypeBadge } from "@/components/item-card";
+import { useAuth } from "@/components/auth-provider";
 import { cn } from "@/lib/utils";
-import { relativeTimeFromIso, type ApiCandidate } from "@/lib/api";
+import {
+  api,
+  relativeTimeFromIso,
+  type ApiCandidate,
+} from "@/lib/api";
+
+type Stage =
+  | { kind: "idle" }
+  | { kind: "confirming" }
+  | { kind: "submitting" }
+  | { kind: "done"; contact: string | null }
+  | { kind: "error"; message: string };
 
 export function MatchCard({
   candidate,
   index,
-  otherEmailHint,
+  queryItemId,
 }: {
   candidate: ApiCandidate;
   index: number;
-  otherEmailHint: string;
+  queryItemId: string;
 }) {
-  const [stage, setStage] = useState<"idle" | "confirming" | "done">("idle");
+  const { user } = useAuth();
+  const [stage, setStage] = useState<Stage>({ kind: "idle" });
   const tilt = ["-rotate-[0.3deg]", "rotate-[0.2deg]"][index % 2];
   const rerank = Math.round(candidate.rerank_score ?? 0);
+
+  async function confirm() {
+    setStage({ kind: "submitting" });
+    try {
+      const result = await api.confirmMatch(queryItemId, {
+        matchedItemId: candidate.item.id,
+        combinedScore: candidate.combined_score,
+        rerankScore: candidate.rerank_score,
+      });
+      setStage({ kind: "done", contact: result.contact_email });
+    } catch (exc) {
+      setStage({
+        kind: "error",
+        message: exc instanceof Error ? exc.message : "Couldn't confirm",
+      });
+    }
+  }
 
   return (
     <article className={cn("usfind-card relative p-5", tilt)}>
@@ -79,11 +109,73 @@ export function MatchCard({
           </details>
 
           <div className="mt-1 flex flex-wrap gap-2">
-            {stage === "idle" ? (
+            {stage.kind === "done" ? (
+              <div className="w-full border border-[var(--accent-strong)] bg-paper-soft p-3 font-mono text-xs uppercase tracking-wider text-[var(--accent-strong)]">
+                ✓ Match confirmed
+                {stage.contact ? (
+                  <>
+                    {" · contact: "}
+                    <Link
+                      href={`mailto:${stage.contact}`}
+                      className="text-ink underline-offset-4 hover:underline"
+                    >
+                      {stage.contact}
+                    </Link>
+                  </>
+                ) : null}
+              </div>
+            ) : stage.kind === "error" ? (
+              <div className="w-full border border-line bg-paper-soft p-3">
+                <p className="font-mono text-xs uppercase tracking-wider text-ink-soft">
+                  {stage.message}
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setStage({ kind: "idle" })}
+                  className="mt-2 font-mono uppercase tracking-wider"
+                >
+                  Try again
+                </Button>
+              </div>
+            ) : stage.kind === "confirming" || stage.kind === "submitting" ? (
+              <div className="flex w-full flex-col gap-3 border border-[var(--accent-strong)] bg-paper-soft/70 p-3">
+                <p className="font-display text-base">
+                  Confirm? The poster&apos;s email will be shared with you and
+                  both items will be marked as matched.
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    onClick={confirm}
+                    disabled={stage.kind === "submitting"}
+                    className="font-mono uppercase tracking-wider"
+                  >
+                    {stage.kind === "submitting" ? "Confirming…" : "Yes, confirm"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setStage({ kind: "idle" })}
+                    disabled={stage.kind === "submitting"}
+                    className="font-mono uppercase tracking-wider"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
               <>
                 <Button
                   size="sm"
-                  onClick={() => setStage("confirming")}
+                  onClick={() =>
+                    user
+                      ? setStage({ kind: "confirming" })
+                      : setStage({
+                          kind: "error",
+                          message: "Sign in to confirm a match.",
+                        })
+                  }
                   className="font-mono uppercase tracking-wider"
                 >
                   ✶ This is mine!
@@ -98,38 +190,6 @@ export function MatchCard({
                   Read filing
                 </Button>
               </>
-            ) : stage === "confirming" ? (
-              <div className="flex w-full flex-col gap-3 border border-[var(--accent-strong)] bg-paper-soft/70 p-3">
-                <p className="font-display text-base">
-                  Confirm? The poster&apos;s email will be shared with you.
-                  <br />
-                  <span className="font-mono text-[0.7rem] uppercase tracking-wider text-ink-soft">
-                    (Confirmation endpoint wires up in the next pass.)
-                  </span>
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => setStage("done")}
-                    className="font-mono uppercase tracking-wider"
-                  >
-                    Yes, confirm
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setStage("idle")}
-                    className="font-mono uppercase tracking-wider"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="w-full border border-[var(--accent-strong)] bg-paper-soft p-3 font-mono text-xs uppercase tracking-wider text-[var(--accent-strong)]">
-                ✓ Match confirmed · contact:{" "}
-                <span className="text-ink">{otherEmailHint}</span>
-              </div>
             )}
           </div>
         </div>

@@ -112,7 +112,7 @@ export default async function MatchesPage({ params }: { params: Params }) {
                 key={c.item.id}
                 candidate={c}
                 index={index}
-                otherEmailHint={`${(c.item.poster_name ?? "owner").toLowerCase()}@usf.edu`}
+                queryItemId={queryItem.id}
               />
             ))}
           </div>

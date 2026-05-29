@@ -16,8 +16,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from api.routers import auth as auth_router
+from api.routers import auto_describe as auto_describe_router
 from api.routers import items as items_router
 from api.routers import matches as matches_router
+from api.routers import me as me_router
 from api.routers import search as search_router
 from api.routers import stats as stats_router
 from app.core import db
@@ -82,7 +85,10 @@ def health() -> dict:
     return {"status": "ok", "environment": settings.environment}
 
 
+app.include_router(auth_router.router)
+app.include_router(auto_describe_router.router)
 app.include_router(items_router.router)
 app.include_router(matches_router.router)
+app.include_router(me_router.router)
 app.include_router(search_router.router)
 app.include_router(stats_router.router)

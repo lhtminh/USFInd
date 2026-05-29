@@ -79,6 +79,38 @@ class SearchResult(BaseModel):
     total_ms: float
 
 
+class UserOut(BaseModel):
+    id: UUID
+    email: str
+    name: str | None
+
+
+class MyMatchSideOut(BaseModel):
+    id: UUID
+    title: str
+    image_url: str
+    is_mine: bool
+
+
+class MyMatchOut(BaseModel):
+    id: UUID
+    query: MyMatchSideOut
+    matched: MyMatchSideOut
+    rerank_score: float | None
+    confirmed_at: datetime
+
+
+class ConfirmMatchRequest(BaseModel):
+    matched_item_id: UUID
+    combined_score: float
+    rerank_score: float | None = None
+
+
+class ConfirmMatchResult(BaseModel):
+    ok: bool
+    contact_email: str | None
+
+
 class StatsOut(BaseModel):
     users: int
     open_total: int

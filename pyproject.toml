@@ -8,6 +8,8 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "W"]
+# B008 is FastAPI's idiomatic pattern (Depends/File/Form/Query in defaults).
+ignore = ["B008"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

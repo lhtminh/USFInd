@@ -57,6 +57,32 @@ export type ApiSearch = {
   total_ms: number;
 };
 
+export type ApiUser = {
+  id: string;
+  email: string;
+  name: string | null;
+};
+
+export type ApiMyMatchSide = {
+  id: string;
+  title: string;
+  image_url: string;
+  is_mine: boolean;
+};
+
+export type ApiMyMatch = {
+  id: string;
+  query: ApiMyMatchSide;
+  matched: ApiMyMatchSide;
+  rerank_score: number | null;
+  confirmed_at: string;
+};
+
+export type ApiConfirmResult = {
+  ok: boolean;
+  contact_email: string | null;
+};
+
 export type ApiStats = {
   users: number;
   open_total: number;
@@ -86,6 +112,7 @@ export type ApiStats = {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     cache: "no-store",
+    credentials: "include",
     ...init,
   });
   if (!res.ok) {
@@ -143,6 +170,63 @@ export const api = {
 
   getStats(): Promise<ApiStats> {
     return request<ApiStats>("/api/stats");
+  },
+
+  signIn(email: string, name?: string): Promise<ApiUser> {
+    return request<ApiUser>("/api/auth/sign-in", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, name }),
+    });
+  },
+
+  signOut(): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>("/api/auth/sign-out", { method: "POST" });
+  },
+
+  me(): Promise<ApiUser | null> {
+    return request<ApiUser>("/api/auth/me").catch((err) => {
+      if (err instanceof ApiError && err.status === 401) return null;
+      throw err;
+    });
+  },
+
+  myItems(): Promise<ApiItem[]> {
+    return request<ApiItem[]>("/api/me/items");
+  },
+
+  myMatches(): Promise<ApiMyMatch[]> {
+    return request<ApiMyMatch[]>("/api/me/matches");
+  },
+
+  createItem(form: FormData): Promise<ApiItem> {
+    return request<ApiItem>("/api/items", { method: "POST", body: form });
+  },
+
+  autoDescribe(form: FormData): Promise<{ description: string }> {
+    return request<{ description: string }>("/api/auto-describe", {
+      method: "POST",
+      body: form,
+    });
+  },
+
+  confirmMatch(
+    queryItemId: string,
+    args: {
+      matchedItemId: string;
+      combinedScore: number;
+      rerankScore: number | null;
+    },
+  ): Promise<ApiConfirmResult> {
+    return request<ApiConfirmResult>(`/api/items/${queryItemId}/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        matched_item_id: args.matchedItemId,
+        combined_score: args.combinedScore,
+        rerank_score: args.rerankScore,
+      }),
+    });
   },
 };
 
