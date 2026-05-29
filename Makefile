@@ -6,7 +6,7 @@ else
 	PY := .venv/bin/python
 endif
 
-.PHONY: up down logs reset run test fmt seed benchmark
+.PHONY: up down logs reset api web test fmt seed benchmark
 
 up:
 	$(COMPOSE) up -d
@@ -21,8 +21,11 @@ reset:
 	$(COMPOSE) down -v
 	$(COMPOSE) up -d
 
-run:
-	$(PY) -m streamlit run app/streamlit_app.py
+api:
+	$(PY) -m uvicorn api.main:app --reload --port 8000
+
+web:
+	cd web && npm run dev
 
 test:
 	$(PY) -m pytest

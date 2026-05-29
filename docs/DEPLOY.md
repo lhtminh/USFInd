@@ -1,7 +1,8 @@
 # USFind — production deployment checklist
 
-Run-through for shipping USFind to **Railway** (containers) + **Neon**
-(Postgres) + **Cloudflare R2** (images).
+Run-through for shipping USFind. Recommended split: **Vercel** for the
+Next.js frontend (free tier covers it), **Railway** for the FastAPI bridge +
+Qdrant + Redis, **Neon** for Postgres, **Cloudflare R2** for images.
 
 ## 1. External services
 
@@ -16,17 +17,18 @@ Run-through for shipping USFind to **Railway** (containers) + **Neon**
 - Generate an API token with R2 read/write. Note the **endpoint URL**,
   **Access Key ID**, and **Secret Access Key**.
 
-### Gemini API key
-- Create a key at <https://aistudio.google.com/app/apikey> (or Cloud Console).
+### OpenRouter
+- Sign up at <https://openrouter.ai/keys> and create a key. Free vision models
+  exist today; you can override the per-tier model via env later.
 
-## 2. Railway project
+## 2. Railway project (FastAPI + Qdrant + Redis)
 
 Create a new Railway project, then add **three services**:
 
-### a. `streamlit` (the app)
+### a. `api` (FastAPI)
 - Source: this repo.
 - Builder: Dockerfile at `docker/Dockerfile` (context = repo root).
-- Port: `8501` (Streamlit binds 0.0.0.0:8501 inside the container).
+- Port: `8000` (uvicorn binds 0.0.0.0:8000 inside the container).
 - Environment variables (Service → Variables):
 
   | Name | Value |
@@ -37,12 +39,16 @@ Create a new Railway project, then add **three services**:
   | `QDRANT_URL` | `http://qdrant.railway.internal:6333` |
   | `QDRANT_API_KEY` | *(leave empty for internal use)* |
   | `REDIS_URL` | `redis://redis.railway.internal:6379` |
-  | `GEMINI_API_KEY` | from Step 1 |
+  | `OPENROUTER_API_KEY` | from Step 1 |
+  | `OPENROUTER_BASE_URL` | *(default `https://openrouter.ai/api/v1`)* |
+  | `OPENROUTER_FLASH_MODEL` | *(optional override)* |
+  | `OPENROUTER_PRO_MODEL` | *(optional override)* |
   | `R2_ENDPOINT` | from R2 |
   | `R2_ACCESS_KEY_ID` | from R2 |
   | `R2_SECRET_ACCESS_KEY` | from R2 |
   | `R2_BUCKET` | `usfind-images` |
   | `R2_PUBLIC_URL` | R2.dev or custom public URL |
+  | `API_CORS_ORIGINS` | your Vercel app domain, comma-separated |
   | `RUN_MIGRATIONS_ON_BOOT` | `true` (one-time, then remove) |
 
 ### b. `qdrant`
@@ -57,22 +63,30 @@ Create a new Railway project, then add **three services**:
 - Add a volume mount for `/data`.
 - Expose port `6379` on the internal network (no public domain).
 
-## 3. First deploy
+## 3. Vercel project (Next.js)
 
-1. Trigger a Railway build of the `streamlit` service.
-2. Wait for the Dockerfile to finish (CLIP pre-download runs once during build).
-3. Generate a **public domain** on the streamlit service.
-4. Visit the URL. On first request, migrations run against Neon
-   (`RUN_MIGRATIONS_ON_BOOT=true`); after that succeeds once, remove the flag and redeploy.
+1. **Import the repo** at https://vercel.com/new → pick this GitHub repo.
+2. Set the **root directory** to `web/`.
+3. Framework preset: **Next.js** (auto-detected).
+4. Environment variables:
 
-## 4. Smoke test the live app
+   | Name | Value |
+   |---|---|
+   | `NEXT_PUBLIC_API_BASE` | the Railway `api` service public URL |
 
-1. **Sign in** with an email from the sidebar.
-2. **Post an item** with a photo (you should see the AI auto-description).
-3. **Browse** to verify the item appears with its thumbnail (served from R2).
-4. **Search** with a free-text query and confirm filter chips appear.
-5. Open an item and click **Show possible matches** to exercise the 2-stage pipeline.
-6. Visit **Stats** — confirm system scale, cache, and cost tiles populate.
+5. Deploy. Vercel gives you a public URL (e.g. `usfind.vercel.app`).
+6. Back in Railway, set `API_CORS_ORIGINS` to that URL.
+
+## 4. First deploy verification
+
+1. Trigger a Railway build of the `api` service. The Dockerfile pre-downloads
+   CLIP during the build, so the first request is fast.
+2. After the first successful boot, remove `RUN_MIGRATIONS_ON_BOOT` (it ran
+   once via the FastAPI lifespan and inserted rows into `schema_migrations`).
+3. Hit the Vercel URL.
+4. Walk the flow: **browse** → **item detail** → **show possible matches**
+   (exercises the LLM rerank) → **search** (exercises the parse step) →
+   **stats** (system counts + cache + cost + Qdrant vitals).
 
 ## 5. Optional: seed and benchmark
 
@@ -81,7 +95,7 @@ production values):
 
 ```bash
 python -m scripts.seed_data --num-items 80 --plant-matches 8
-python -m scripts.benchmark --num-queries 50            # warm
+python -m scripts.benchmark --num-queries 50                # warm
 python -m scripts.benchmark --num-queries 50 --flush-cache  # cold
 ```
 
@@ -91,6 +105,7 @@ README can link to real numbers.
 ## 6. Day-2 operations
 
 - **Logs:** Railway → service → Deployments → Logs (JSON via `configure_logging`).
-- **Cost:** the `/Stats` page surfaces daily and monthly Gemini cost; aggregated from `llm_usage`.
+- **Cost:** the `/stats` page in Vercel surfaces daily and monthly LLM cost.
 - **Backfill failed embeddings:** if any items show `embedding_status='failed'`,
   run `python -m scripts.backfill_embeddings` against production credentials.
+- **Auto-generated API docs:** `https://<api-domain>/docs` (FastAPI's Swagger UI).

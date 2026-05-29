@@ -1,4 +1,4 @@
-# USFind production image (Streamlit + retrieval pipeline) for Railway.
+# USFind FastAPI production image for Railway.
 # Build context = repo root. Build with:
 #   docker build -f docker/Dockerfile -t usfind .
 FROM python:3.11-slim
@@ -28,11 +28,9 @@ RUN python -c "from transformers import CLIPModel, CLIPProcessor; \
     CLIPProcessor.from_pretrained('openai/clip-vit-base-patch32')"
 
 COPY app/ ./app/
+COPY api/ ./api/
 COPY scripts/ ./scripts/
 
-EXPOSE 8501
+EXPOSE 8000
 
-CMD ["streamlit", "run", "app/streamlit_app.py", \
-     "--server.port=8501", \
-     "--server.address=0.0.0.0", \
-     "--server.headless=true"]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
