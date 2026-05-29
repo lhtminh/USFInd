@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { TypeBadge } from "@/components/item-card";
 import { useAuth } from "@/components/auth-provider";
+import { SignInSheet } from "@/components/sign-in-sheet";
 import { cn } from "@/lib/utils";
 import {
   api,
@@ -164,22 +165,37 @@ export function MatchCard({
                   </Button>
                 </div>
               </div>
-            ) : (
+            ) : user ? (
               <>
                 <Button
                   size="sm"
-                  onClick={() =>
-                    user
-                      ? setStage({ kind: "confirming" })
-                      : setStage({
-                          kind: "error",
-                          message: "Sign in to confirm a match.",
-                        })
-                  }
+                  onClick={() => setStage({ kind: "confirming" })}
                   className="font-mono uppercase tracking-wider"
                 >
                   ✶ This is mine!
                 </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  render={<Link href={`/items/${candidate.item.id}`} />}
+                  nativeButton={false}
+                  className="font-mono uppercase tracking-wider"
+                >
+                  Read filing
+                </Button>
+              </>
+            ) : (
+              <>
+                <SignInSheet
+                  trigger={
+                    <Button
+                      size="sm"
+                      className="font-mono uppercase tracking-wider"
+                    >
+                      ✶ Sign in to claim
+                    </Button>
+                  }
+                />
                 <Button
                   size="sm"
                   variant="outline"

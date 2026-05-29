@@ -19,7 +19,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "USFind — Dept. of Lost & Found",
   description:
-    "Multi-modal AI matches lost & found items on the USF campus. Built with CLIP embeddings, Qdrant vector search, and Gemini Pro re-ranking.",
+    "Multi-modal AI matches lost & found items on the USF campus. Built with CLIP embeddings, Qdrant vector search, and a Nemotron reasoning LLM for re-ranking.",
 };
 
 export default function RootLayout({

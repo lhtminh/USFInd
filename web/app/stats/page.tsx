@@ -27,7 +27,7 @@ export default async function StatsPage() {
             How the bureau is <em>running</em>.
           </h1>
           <p className="mt-2 max-w-xl text-ink-soft">
-            Latency percentiles, cache hit rates, Gemini cost, and Qdrant
+            Latency percentiles, cache hit rates, LLM cost, and Qdrant
             vitals — refreshed live from{" "}
             <code className="font-mono">llm_usage</code> and an in-process
             rolling window.
@@ -90,7 +90,7 @@ export default async function StatsPage() {
                       highlight
                     />
                     <Row
-                      name="Stage 2 · Gemini rerank"
+                      name="Stage 2 · Nemotron rerank"
                       p={{ ...ZERO, ...s.latency.stage2 }}
                     />
                     <Row
@@ -132,7 +132,7 @@ export default async function StatsPage() {
               </div>
             </Section>
 
-            <Section label="§ IV — Cost" title="Gemini spend, watched.">
+            <Section label="§ IV — Cost" title="LLM spend, watched.">
               <div className="grid gap-4 sm:grid-cols-3">
                 <Tile
                   k="today"
@@ -212,7 +212,7 @@ Next.js 16 (app)         │
                          │            └► users, items, matches, llm_usage
                          ├──► Qdrant   (vector recall + payload filters)
                          ├──► Redis    (3-layer cache + rerank cache)
-                         ├──► Gemini   (Flash for parse + describe; Pro for rerank)
+                         ├──► OpenRouter (Nemotron 3 Nano Omni — describe + parse + rerank)
                          └──► R2       (image storage, signed upload URLs)`}
                 </pre>
               </div>

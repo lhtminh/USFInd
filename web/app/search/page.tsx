@@ -59,8 +59,9 @@ export default function SearchPage() {
             Describe what&apos;s <em>missing</em>.
           </h1>
           <p className="mt-3 max-w-xl text-lg text-ink-soft">
-            Gemini Flash parses your sentence into filters, CLIP embeds the
-            cleaned query, and Pro re-ranks the candidates with reasons.
+            A reasoning LLM parses your sentence into filters, CLIP embeds the
+            cleaned query, and the same LLM re-ranks the candidates with
+            reasons.
           </p>
         </header>
 

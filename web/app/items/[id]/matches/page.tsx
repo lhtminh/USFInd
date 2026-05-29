@@ -77,7 +77,7 @@ export default async function MatchesPage({ params }: { params: Params }) {
 
         <div className="border border-line bg-paper-soft/60 px-5 py-4 font-mono text-[0.72rem] uppercase tracking-wider text-ink-soft">
           <span className="text-ink">Pipeline ·</span> Qdrant HNSW recall (top
-          50) → Gemini 2.5 Pro re-rank (top 10) ·{" "}
+          50) → Nemotron re-rank (top 10) ·{" "}
           <span className="text-ink">stage 1</span> {stage1Ms.toFixed(0)} ms ·{" "}
           <span className="text-ink">stage 2</span> {stage2Ms.toFixed(0)} ms ·{" "}
           <span className="text-ink">total</span> {totalMs.toFixed(0)} ms ·{" "}
@@ -91,7 +91,7 @@ export default async function MatchesPage({ params }: { params: Params }) {
             </span>
             <p className="max-w-xl text-ink-soft">
               The retrieval failed. Either the query item is still indexing,
-              Qdrant isn&apos;t up, or the Gemini key is missing.
+              Qdrant isn&apos;t up, or the LLM key is missing.
             </p>
             <span className="font-mono text-[0.72rem] uppercase tracking-wider text-ink-soft">
               {runError}
