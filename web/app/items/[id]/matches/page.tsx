@@ -43,7 +43,7 @@ export default async function MatchesPage({ params }: { params: Params }) {
   return (
     <div className="flex flex-1 flex-col">
       <SiteHeader />
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-6 py-16">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-12 sm:gap-10 sm:px-6 sm:py-16">
         <div className="usfind-label text-ink-soft">
           <Link href={`/items/${queryItem.id}`} className="hover:text-ink">
             ← back to the filing
@@ -55,7 +55,7 @@ export default async function MatchesPage({ params }: { params: Params }) {
             <div className="usfind-label text-ink-soft mb-2">
               ✶ Matching against
             </div>
-            <h1 className="font-display text-5xl tracking-tight">
+            <h1 className="font-display text-4xl tracking-tight sm:text-5xl">
               Possible <em>matches</em>.
             </h1>
           </div>

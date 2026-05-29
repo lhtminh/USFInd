@@ -52,25 +52,25 @@ export default function HomePage() {
     <div className="flex flex-1 flex-col">
       <SiteHeader />
 
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-24 px-6 py-20">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-16 px-4 py-12 sm:px-6 sm:py-16 md:gap-24 md:py-20">
         {/* Hero */}
         <section className="grid gap-10 md:grid-cols-12">
           <div className="md:col-span-8 usfind-reveal">
             <div className="usfind-label text-ink-soft mb-4">
               Issue 01 · Spring 2026 · Established this week
             </div>
-            <h1 className="usfind-headline font-display text-[5.5rem] sm:text-[7.5rem]">
+            <h1 className="usfind-headline font-display text-[3.25rem] sm:text-[5.5rem] lg:text-[7.5rem]">
               Lost?
               <br />
               <em className="text-[var(--accent-strong)]">found.</em>
             </h1>
-            <p className="mt-10 max-w-xl text-xl leading-relaxed text-ink-soft">
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink-soft sm:mt-10 sm:text-xl">
               The Department of Lost &amp; Found at the University of South
               Florida. Powered by multi-modal embeddings, a Qdrant vector
               index, and Gemini Pro re-ranking — so missing things come back{" "}
               <em>ranked and explained</em>, not just listed.
             </p>
-            <div className="mt-10 flex flex-wrap gap-3">
+            <div className="mt-6 flex flex-wrap gap-3 sm:mt-10">
               <Button
                 size="lg"
                 render={<Link href="/post" />}

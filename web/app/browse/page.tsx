@@ -34,13 +34,13 @@ export default async function BrowsePage({
   return (
     <div className="flex flex-1 flex-col">
       <SiteHeader />
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-6 py-16">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-12 sm:gap-10 sm:px-6 sm:py-16">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <div className="usfind-label text-ink-soft mb-2">
               Inventory · open filings
             </div>
-            <h1 className="font-display text-5xl tracking-tight">
+            <h1 className="font-display text-4xl tracking-tight sm:text-5xl">
               Browse the <em>archive</em>.
             </h1>
           </div>

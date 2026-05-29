@@ -11,13 +11,13 @@ export default function MePage() {
   return (
     <div className="flex flex-1 flex-col">
       <SiteHeader />
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-12 px-6 py-16">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-4 py-12 sm:gap-12 sm:px-6 sm:py-16">
         <header className="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
           <div>
             <div className="usfind-label text-ink-soft mb-2">
               Personal ledger · vol. 01
             </div>
-            <h1 className="font-display text-5xl tracking-tight">
+            <h1 className="font-display text-4xl tracking-tight sm:text-5xl">
               Your <em>filings</em>, {currentUser.name}.
             </h1>
             <p className="mt-2 max-w-xl text-ink-soft">
@@ -87,53 +87,57 @@ export default function MePage() {
               {confirmedMatches.map((match) => (
                 <article
                   key={match.id}
-                  className="usfind-card relative grid gap-5 p-5 sm:grid-cols-[1fr_auto_1fr_auto]"
+                  className="usfind-card relative flex flex-col gap-5 p-5"
                 >
                   <span className="usfind-tape" aria-hidden />
-                  <div className="flex items-center gap-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={match.query.image_url}
-                      alt={match.query.title}
-                      className="h-20 w-20 rounded-sm object-cover"
-                    />
-                    <div>
-                      <div className="usfind-label text-ink-soft">
-                        Your post
+                  <div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
+                    <div className="flex items-center gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={match.query.image_url}
+                        alt={match.query.title}
+                        className="h-20 w-20 flex-none rounded-sm object-cover"
+                      />
+                      <div className="min-w-0">
+                        <div className="usfind-label text-ink-soft">
+                          Your post
+                        </div>
+                        <div className="font-display text-lg leading-snug">
+                          {match.query.title}
+                        </div>
                       </div>
-                      <div className="font-display text-lg">
-                        {match.query.title}
+                    </div>
+                    <div className="hidden font-mono text-2xl text-ink-soft sm:block">
+                      ↔
+                    </div>
+                    <div className="flex items-center gap-3 border-t border-line pt-4 sm:border-none sm:pt-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={match.matched.image_url}
+                        alt={match.matched.title}
+                        className="h-20 w-20 flex-none rounded-sm object-cover"
+                      />
+                      <div className="min-w-0">
+                        <div className="usfind-label text-ink-soft">
+                          Other party
+                        </div>
+                        <div className="font-display text-lg leading-snug">
+                          {match.matched.title}
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div className="hidden sm:flex items-center font-mono text-ink-soft">
-                    ↔
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={match.matched.image_url}
-                      alt={match.matched.title}
-                      className="h-20 w-20 rounded-sm object-cover"
-                    />
-                    <div>
-                      <div className="usfind-label text-ink-soft">
-                        Other party
-                      </div>
-                      <div className="font-display text-lg">
-                        {match.matched.title}
-                      </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-4 font-mono text-[0.72rem] uppercase tracking-wider text-ink-soft">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusBadge status="matched" />
+                      <span>
+                        Score {match.rerank_score} ·{" "}
+                        {relativeTimeFromIso(match.confirmed_at)}
+                      </span>
                     </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <StatusBadge status="matched" />
-                    <span className="font-mono text-[0.72rem] uppercase tracking-wider text-ink-soft">
-                      Score {match.rerank_score} ·{" "}
-                      {relativeTimeFromIso(match.confirmed_at)}
-                    </span>
                     <Link
                       href={`mailto:${(match.matched.poster_name ?? "owner").toLowerCase()}@usf.edu`}
-                      className="font-mono text-[0.72rem] uppercase tracking-wider text-[var(--accent-strong)] hover:underline"
+                      className="text-[var(--accent-strong)] hover:underline"
                     >
                       Email {match.matched.poster_name ?? "the poster"}
                     </Link>

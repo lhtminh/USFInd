@@ -62,12 +62,12 @@ export default function PostPage() {
   return (
     <div className="flex flex-1 flex-col">
       <SiteHeader />
-      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-10 px-6 py-16">
+      <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-4 py-12 sm:gap-10 sm:px-6 sm:py-16">
         <header>
           <div className="usfind-label text-ink-soft mb-2">
             New entry · file a report
           </div>
-          <h1 className="font-display text-5xl tracking-tight">
+          <h1 className="font-display text-4xl tracking-tight sm:text-5xl">
             File a <em>report</em>.
           </h1>
           <p className="mt-3 max-w-xl text-lg text-ink-soft">
@@ -279,11 +279,11 @@ function Filed({ onReset }: { onReset: () => void }) {
   return (
     <div className="flex flex-1 flex-col">
       <SiteHeader />
-      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-start gap-6 px-6 py-24">
+      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-start gap-6 px-4 py-16 sm:px-6 sm:py-24">
         <div className="usfind-label text-[var(--accent-strong)]">
           ✓ Filed · receipt #USF-08423
         </div>
-        <h1 className="font-display text-5xl tracking-tight">
+        <h1 className="font-display text-4xl tracking-tight sm:text-5xl">
           Your report is <em>on the wire</em>.
         </h1>
         <p className="max-w-xl text-lg text-ink-soft">

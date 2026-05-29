@@ -18,7 +18,7 @@ export default async function ItemDetailPage({ params }: { params: Params }) {
     return (
       <div className="flex flex-1 flex-col">
         <SiteHeader />
-        <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-10 px-6 py-16">
+        <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 py-12 sm:gap-10 sm:px-6 sm:py-16">
           <div className="usfind-label text-ink-soft">
             <Link href="/browse" className="hover:text-ink">
               ← back to the archive
@@ -44,7 +44,7 @@ export default async function ItemDetailPage({ params }: { params: Params }) {
                   Filed {relativeTimeFromIso(item.posted_at)}
                 </span>
               </div>
-              <h1 className="font-display text-5xl leading-tight tracking-tight">
+              <h1 className="font-display text-3xl leading-tight tracking-tight sm:text-5xl">
                 {item.title}
               </h1>
               <div className="border-y border-line py-5">

@@ -18,12 +18,12 @@ export default async function StatsPage() {
   return (
     <div className="flex flex-1 flex-col">
       <SiteHeader />
-      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-14 px-6 py-16">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-4 py-12 sm:gap-14 sm:px-6 sm:py-16">
         <header>
           <div className="usfind-label text-ink-soft mb-2">
             Engineering dossier · public observability
           </div>
-          <h1 className="font-display text-5xl tracking-tight">
+          <h1 className="font-display text-4xl tracking-tight sm:text-5xl">
             How the bureau is <em>running</em>.
           </h1>
           <p className="mt-2 max-w-xl text-ink-soft">
@@ -73,8 +73,8 @@ export default async function StatsPage() {
               label="§ II — Latency"
               title="Pipeline percentiles (last 100 retrievals)."
             >
-              <div className="overflow-hidden border border-line">
-                <table className="w-full font-mono text-sm">
+              <div className="overflow-x-auto border border-line">
+                <table className="w-full min-w-[480px] font-mono text-sm">
                   <thead className="bg-paper-soft text-left uppercase tracking-wider text-[0.72rem] text-ink-soft">
                     <tr>
                       <th className="px-4 py-3">Stage</th>
