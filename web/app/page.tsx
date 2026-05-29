@@ -18,7 +18,7 @@ const TECH = [
   "Postgres / Neon",
   "Qdrant",
   "Redis",
-  "Gemini Flash + Pro",
+  "Nemotron 3 Nano Omni",
   "CLIP ViT-B/32",
   "Cloudflare R2",
 ];
@@ -28,12 +28,12 @@ const FEATURES = [
     code: "I.",
     tag: "Vision LLM",
     title: "Auto-described from a photo",
-    body: "Gemini Vision drafts a precise, factual description the moment you upload the photo. Edit it or accept it.",
+    body: "A vision-capable reasoning LLM drafts a precise, factual description the moment you upload the photo. Edit it or accept it.",
     rotate: "-rotate-[0.7deg]",
   },
   {
     code: "II.",
-    tag: "Flash + CLIP",
+    tag: "LLM + CLIP",
     title: "Conversational search",
     body: "“I lost a blue water bottle near the library yesterday” becomes typed filter chips plus semantic search.",
     rotate: "rotate-[0.4deg]",
@@ -42,7 +42,7 @@ const FEATURES = [
     code: "III.",
     tag: "Recall → Rerank",
     title: "Explainable matches",
-    body: "Qdrant HNSW recall fused 0.7 / 0.3, then Gemini Pro re-rank. Every match comes with a one-sentence reason.",
+    body: "Qdrant HNSW recall fused 0.7 / 0.3, then Nemotron re-rank. Every match comes with a one-sentence reason.",
     rotate: "-rotate-[0.3deg]",
   },
 ];
@@ -67,8 +67,8 @@ export default function HomePage() {
             <p className="mt-6 max-w-xl text-lg leading-relaxed text-ink-soft sm:mt-10 sm:text-xl">
               The Department of Lost &amp; Found at the University of South
               Florida. Powered by multi-modal embeddings, a Qdrant vector
-              index, and Gemini Pro re-ranking — so missing things come back{" "}
-              <em>ranked and explained</em>, not just listed.
+              index, and a Nemotron reasoning LLM re-ranking — so missing
+              things come back <em>ranked and explained</em>, not just listed.
             </p>
             <div className="mt-6 flex flex-wrap gap-3 sm:mt-10">
               <Button
@@ -176,8 +176,8 @@ export default function HomePage() {
               How the matching <em>actually</em> works.
             </h2>
           </header>
-          <div className="usfind-card relative p-8">
-            <pre className="overflow-x-auto whitespace-pre font-mono text-[0.78rem] leading-relaxed text-ink sm:text-sm">
+          <div className="usfind-card relative p-6 sm:p-8">
+            <pre className="overflow-x-auto whitespace-pre font-mono text-[0.7rem] leading-relaxed text-ink sm:text-sm">
               {`QUERY ITEM ─► CLIP image / text embeddings (cached, Redis 30d TTL)
                   │
                   ▼
@@ -189,7 +189,8 @@ export default function HomePage() {
                                   TOP 50 CANDIDATES
                                           │
                                           ▼
-                          GEMINI 2.5 PRO  re-rank with response_schema
+                NEMOTRON 3 NANO OMNI 30B  re-rank (reasoning + vision)
+                          via OpenRouter  │   response_format = json_object
                                           │   { rerank_score 0–100, explanation }
                                           ▼
                                   TOP 10 with reasons
