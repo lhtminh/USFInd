@@ -45,10 +45,11 @@ two parallel cosine searches; the per-source scores are fused
 `0.7 * image + 0.3 * text` and the top 50 after a 0.45 threshold proceed.
 
 **Stage 2 — LLM re-ranking.**
-The top 20 candidates go to a vision LLM (default `qwen/qwen2.5-vl-72b-instruct`
-via OpenRouter) with the query image, candidate images, and metadata. A JSON
-response schema returns `{candidate_index, rerank_score 0-100, explanation}`.
-Anything under 40 is dropped; the final top 10 are returned sorted by score.
+The top 20 candidates go to a vision/reasoning LLM (default
+`nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` via OpenRouter) with the
+query image, candidate images, and metadata. A JSON response schema returns
+`{candidate_index, rerank_score 0-100, explanation}`. Anything under 40 is
+dropped; the final top 10 are returned sorted by score.
 
 **Why this architecture?**
 Recall-then-rerank is the standard pattern for YouTube, Spotify, and modern
